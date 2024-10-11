@@ -102,6 +102,8 @@ for istim = 1:numel(uniqueStimuli)
 
     nGkeyIdx = sum(strcmp(ExpInfo.Stimulus, stimulus));
 
+    if ~strcmp(stimulus,'Spontaneous')
+
     if nParamsFiles~=nGkeyIdx
         error(['Number of params files found doesnt match number of gkey entries for stimulus: ', stimulus])
     end
@@ -128,6 +130,8 @@ for istim = 1:numel(uniqueStimuli)
         ExpInfo.PhotodiodeFiles(thisTableIndex) = {fullfile(photodiodeFiles(ifile).folder,photodiodeFiles(ifile).name)};
         ExpInfo.VideoCSVFiles(thisTableIndex) = {fullfile(videoCSVFiles(ifile).folder,videoCSVFiles(ifile).name)};
         ExpInfo.VideoFiles(thisTableIndex) = {fullfile(videoFiles(ifile).folder,videoFiles(ifile).name)};
+    end
+
     end
 
 end

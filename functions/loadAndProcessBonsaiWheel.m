@@ -1,4 +1,6 @@
-function wheel = processWheel2024Temp(wheelFile,smoothMethod,windowSize)
+function wheel = loadAndProcessBonsaiWheel(wheelFile,smoothMethod,windowSize)
+% this uses Arduino timestamps to process wheel, a temp fix before using
+% the spikeGLX .bin file
 
 wheel_temp = readtable(wheelFile);
 wheel.pos = wheel_temp.Wheel;
