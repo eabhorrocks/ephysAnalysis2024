@@ -142,7 +142,7 @@ for iunit = 1:numel(units)
     units(iunit).allSpikes_0b = anUnits(iunit).allSpikes;
 end
 
-%%
+%% plot tuning curves, one unit at a time
 
 
 figure
@@ -177,19 +177,70 @@ for iunit = 1:numel(units)
     % linkaxes(ax,'y')
     pause
 end
-%%
-% timeforspikes = [ExpInfo.sec_nidq(2), ExpInfo.sec_nidq(3)];
-% 
-% temp_spikes = cat(1,units.spike_times);
-% 
-% [binSpikes,edges] = histcounts(temp_spikes, timeforspikes(1):0.01:timeforspikes(2));
-% smthSpikes = smoothdata(binSpikes,'gaussian',17.5);
-% binTime = movmean(edges,2,'Endpoints','discard');
-% 
-% figure
-% ax(1)=subplot(211);
-% plot(thisTime,PD_binary)
-% ax(2)=subplot(212);
-% plot(binTime,smthSpikes)
-% linkaxes(ax,'x');
 
+
+
+%%
+%% get trial intervals for PSTH function
+
+statTrials = allFlickerTrials([allFlickerTrials.runFlag]==0);
+runTrials = allFlickerTrials([allFlickerTrials.runFlag]==1);
+
+for ifreq = 1:numel(flickFreqs)
+    % stationary/locomotion trials
+    stimTrials = statTrials([statTrials.StimulusFrequency]==flickFreqs(ifreq));
+    stat_intervalsCell{ifreq}= [vertcat(stimTrials.start_time), vertcat(stimTrials.stop_time)].*1000;
+
+    stimTrials = runTrials([runTrials.StimulusFrequency]==flickFreqs(ifreq));
+    run_intervalsCell{ifreq}= [vertcat(stimTrials.start_time), vertcat(stimTrials.stop_time)].*1000;
+end
+
+%% generate PSTHs
+
+% options for PSTH function
+options.binWidth = 10;
+options.preTime = 1000;
+options.postTime = 1000;
+options.smoothType = 'gaussian';
+options.smoothWidth = 75;
+
+options.getReliability = false;
+options.kfold = 3; % set to number>nTrials to do Leave-one-out.
+options.distType = 'correlation';
+options.nReliPerms = 25;
+options.nShuffle = 40;
+
+options.plot = true;
+options.cols = inferno(10); %options.cols(1,:) = [];
+options.plotFRrange = [];
+options.plot95CI = false;
+figure
+freq_idx = 1:10;
+for iunit =34
+    %[psth, blank, bmp] = makePSTH(spikeTimes,intervalsCell,blankIntervals,options);
+    subplot(121)
+    [units(iunit).stat_psth, ~, ~]            = makePSTH(units(iunit).spike_times*1000,stat_intervalsCell(freq_idx),[],options);
+    subplot(122)
+    [units(iunit).run_psth, ~, bmp]            = makePSTH(units(iunit).spike_times*1000,run_intervalsCell(freq_idx),[],options);
+
+ %   [units(iunit).statSmall_psth, units(iunit).statSmall_blank, ~]  = makePSTH(units(iunit).spike_times*1000,statSmall_intervalsCell,statSmall_blankIntervals,options);
+ %   [units(iunit).statBig_psth, units(iunit).statBig_blank, ~]      = makePSTH(units(iunit).spike_times*1000,statBig_intervalsCell,statBig_blankIntervals,options);
+end
+
+
+%%
+
+cols=inferno(5);
+iunit = 4;
+
+figure,
+subplot(121),
+hold on
+for ifreq = 2
+plot(bmp, units(iunit).stat_psth(ifreq).psth,'Color',cols(ifreq,:))
+end
+subplot(122),
+hold on
+for ifreq = 2
+plot(bmp, units(iunit).run_psth(ifreq).psth,'Color',cols(ifreq,:))
+end
