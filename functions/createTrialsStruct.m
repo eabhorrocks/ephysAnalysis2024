@@ -8,8 +8,17 @@ for istim = 1:numel(stimIdx)
 
     pd_up_times = photodiode.up_times; %table2array(readtable(fullfile(nidqDir,'photodiode_up_tprime.txt')));
     pd_down_times = photodiode.down_times; %table2array(readtable(fullfile(nidqDir,'photodiode_down_tprime.txt')));
-    startTime = ExpInfo.('sec_imap0')(thisStim);
-    endTime = ExpInfo.('sec_imap0')(thisStim+1); % need to check for last file!!, toherwise use PD_down_times + X?
+
+   
+
+    startTime = ExpInfo.('sec_imap0')(thisStim); % get total time of imap stream for last value
+    
+
+     if thisStim==height(ExpInfo)
+        endTime = pd_down_times(end)+10;
+     else
+         endTime = ExpInfo.('sec_imap0')(thisStim+1); % need to check for last file!!, toherwise use PD_down_times + X?
+     end
 
     temp_pd_up = pd_up_times(pd_up_times>=startTime & pd_up_times<endTime);
     temp_pd_down =  pd_down_times(pd_up_times>=startTime & pd_up_times<endTime);

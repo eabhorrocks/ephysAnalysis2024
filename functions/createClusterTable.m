@@ -1,37 +1,72 @@
-function clusterTable = createClusterTable(kilosortDir)
+%% create cluster table (DEV)
 
-% very dev until SI output sorted
+function units = createClusterTable(Subject, Session, BaseDir, SorterName)
 
-%% get file paths
-meta_file = dir(fullfile(kilosortDir,'*tcat.imec0.ap.meta'));
+% Subject = 'M24019';
+% Session = '20240718';
+% BaseDir = 'Z:\ibn-vision\DATA\SUBJECTS';
+% SorterName = 'kilosort4_merged';
+kilosortDir = fullfile(BaseDir,Subject,'ephys',Session,'spike_sorting','probe0','sorters',SorterName);
+extensionsDir = fullfile(BaseDir,Subject,'ephys',Session,'spike_sorting','probe0','waveform',SorterName,'extensions');
 
-st_file = dir(fullfile(kilosortDir,['spike_times.npy']));
-clusterID_file = dir(fullfile(kilosortDir,['spike_clusters.npy']));
-chanPos_file = dir(fullfile(kilosortDir,['channel_positions.npy']));
-% clusterTable_file = dir(fullfile(kilosortDir,['clus_Table*.npy']));
-% clusterTable_file = clusterTable_file(end); % get most recent
 
-clusterNoise_file = dir(fullfile(kilosortDir,['cluster_group.tsv'])); % noise not noise
-clusterKSlabel_file = dir(fullfile(kilosortDir,['cluster_KSLabel.tsv']));
+imSampRate=30000; % load from .meta file
 
-%% create cluster table
 
-clusterTable = table;
-sample_rate = 30000; % change to read from .meta file
-% load spike times in samples and convert to seconds
-spike_times_samples = double(readNPY(fullfile(kilosortDir, st_file.name)));
-spike_times = spike_times_samples/sample_rate;
+%% get pre-computed quality metrics
+quality_metrics = readtable(fullfile(extensionsDir,'quality_metrics','metrics.csv'));
+template_metrics = readtable(fullfile(extensionsDir,'template_metrics','metrics.csv'));
+cluster_metrics = join(quality_metrics,template_metrics);
+cluster_metrics = renamevars(cluster_metrics,"Var1","cluster_id");
 
-% get cluster_id for each spike time
-cluster_id = double(readNPY(fullfile(kilosortDir,  clusterID_file.name)));
-uniqueClusters = unique(cluster_id);
 
-% add table var for spike times
-clusterTable = addvars(clusterTable, uniqueClusters, 'NewVariableNames', 'cluster_id');
-% unique cluster ids in the clusterTable
+%% get spike times
 
-for icluster = 1:numel(uniqueClusters)
-    table_row = find(clusterTable.cluster_id==uniqueClusters(icluster)); % what is the table row for this cluster_id?
-    tempSpikeTimes = spike_times(cluster_id==uniqueClusters(icluster)); % get spike_times that correspond to this cluster_id
-    clusterTable.spike_times(table_row) = {tempSpikeTimes}; % add these spike_times to the correct table_row
+spikes = readmatrix(fullfile(kilosortDir,'spikes.csv'));
+spike_samples = spikes(:,3);
+spike_times = spike_samples./imSampRate;
+spike_clusters = spikes(:,1);
+original_cluster_id = unique(spike_clusters);
+spike_clusters_updated = cluster_metrics.cluster_id(spike_clusters+1);
+
+for icluster = 1:height(cluster_metrics)
+    cluster_metrics.spike_times(icluster) = {spike_times(spike_clusters_updated==cluster_metrics.cluster_id(icluster))};
 end
+
+
+%% get waveforms and peak channel
+
+templates = readNPY(fullfile(extensionsDir,'templates','average.npy'));
+[~,peak_channel] = max(squeeze(mean(abs(templates),2)),[],2); % channel index providing the maximum of the mean of the absolute
+cluster_metrics.peak_channel = peak_channel;
+
+for icluster = 1:height(cluster_metrics)
+    peak_channel_waveforms(icluster,:) = templates(icluster,:,peak_channel(icluster));
+    cluster_metrics.peak_channel_waveform(icluster,:) = peak_channel_waveforms(icluster,:);
+end
+
+%% get unit locations in co-ordinates
+
+unitLocs = readNPY(fullfile(extensionsDir,'unit_locations','unit_locations.npy'));
+for icluster = 1:height(cluster_metrics)
+    cluster_metrics.location(icluster,:) = unitLocs(icluster,:);
+end
+
+%%
+
+units = cluster_metrics;
+% units = table2struct(cluster_metrics);
+
+end
+%% get physiologically-defined cell type
+% 
+% tic
+% 
+% for icluster = 1:height(cluster_metrics)
+%     [ccg, t] = CCG(cluster_metrics.spike_times{icluster}, ones(size(cluster_metrics.spike_times{icluster})),...
+%     'binSize', 0.0005, 'duration', 0.1,'norm', 'rate');
+%     cluster_metrics.acg(icluster,:) = ccg';
+%     fit_params_out = fit_ACG(ccg,false);
+%     cluster_metrics.tau_rise(icluster) = fit_params_out.acg_tau_rise;
+% end
+% toc

@@ -29,7 +29,8 @@ if numel(scOffsetFiles)>=1
     s(1,:)=[];
     s = convertvars(s,s.Properties.VariableNames, 'cell2mat');
 else
-    s= table(0,0,0,0,0,0,'VariableNames',{'smp_imap0:', 'smp_nidq:', 'sec_imap0:', 'sec_nidq:', 'srate_imap0:', 'srate_nidq:'});
+    %s= table(0,0,0,0,0,0,'VariableNames',{'smp_imap0:', 'smp_nidq:', 'sec_imap0:', 'sec_nidq:', 'srate_imap0:', 'srate_nidq:'});
+    s= table(0,0,0,0,0,0,'VariableNames',{'smp_imap0:', 'smp_imlf0:', 'smp_nidq:', 'sec_imap0:', 'sec_imlf0:', 'sec_nidq:'});
 end
 supercat_tbl = s; clear s
 
@@ -65,9 +66,9 @@ ExpInfo = table;
 ExpInfo.AcquisitionName = cellstr(tempStimInfo.Acquisition);
 ExpInfo.AcqusitionIndex = gkeyTable.Acquisiton_index;
 ExpInfo.gKey = gkeyTable.gNum;
-ExpInfo.smp_imap0 = tempStimInfo.('smp_imap0:');
+ExpInfo.smp_imap0 = tempStimInfo.('smp_imap0:')+1;
 ExpInfo.sec_imap0 = tempStimInfo.('sec_imap0:');
-ExpInfo.smp_nidq = tempStimInfo.('smp_nidq:');
+ExpInfo.smp_nidq = tempStimInfo.('smp_nidq:')+1;
 ExpInfo.sec_nidq = tempStimInfo.('sec_nidq:');
 ExpInfo.Stimulus = gkeyTable.Stimulus;
 ExpInfo.notes = gkeyTable.notes;
@@ -88,11 +89,11 @@ for istim = 1:numel(uniqueStimuli)
 
     stimulus = uniqueStimuli{istim};
 
-    trialParamsFiles = dir(fullfile(bonsaiDir,['*',stimulus,'_TrialParams*']));
-    wheelFiles = dir(fullfile(bonsaiDir,['*',stimulus,'_Wheel*']));
-    photodiodeFiles = dir(fullfile(bonsaiDir,['*',stimulus,'_Photodiode*']));
-    videoCSVFiles = dir(fullfile(bonsaiDir,['*',stimulus,'_video*.csv']));
-    videoFiles = dir(fullfile(bonsaiDir,['*',stimulus,'_video*.avi']));
+    trialParamsFiles = dir(fullfile(bonsaiDir,['*_',stimulus,'_TrialParams*']));
+    wheelFiles = dir(fullfile(bonsaiDir,['*_',stimulus,'_Wheel*']));
+    photodiodeFiles = dir(fullfile(bonsaiDir,['*_',stimulus,'_Photodiode*']));
+    videoCSVFiles = dir(fullfile(bonsaiDir,['*_',stimulus,'_video*.csv']));
+    videoFiles = dir(fullfile(bonsaiDir,['*_',stimulus,'_video*.avi']));
 
     nParamsFiles = numel(trialParamsFiles);
     nWheelFiles = numel(trialParamsFiles);
@@ -102,10 +103,13 @@ for istim = 1:numel(uniqueStimuli)
 
     nGkeyIdx = sum(strcmp(ExpInfo.Stimulus, stimulus));
 
-    if ~strcmp(stimulus,'Spontaneous')
-
+    if ~ismember(stimulus,{'Spontaneous', 'Behaviour', 'SparseNoise','invalid'})
+    try
     if nParamsFiles~=nGkeyIdx
         error(['Number of params files found doesnt match number of gkey entries for stimulus: ', stimulus])
+    end
+    catch
+        debug=1;
     end
     if nWheelFiles~=nGkeyIdx
         error(['Number of wheel files found doesnt match number of gkey entries for stimulus: ', stimulus])
@@ -127,7 +131,7 @@ for istim = 1:numel(uniqueStimuli)
 
         ExpInfo.TrialParamsFiles(thisTableIndex) = {fullfile(trialParamsFiles(ifile).folder,trialParamsFiles(ifile).name)};
         ExpInfo.WheelFiles(thisTableIndex) = {fullfile(wheelFiles(ifile).folder,wheelFiles(ifile).name)};
-        ExpInfo.PhotodiodeFiles(thisTableIndex) = {fullfile(photodiodeFiles(ifile).folder,photodiodeFiles(ifile).name)};
+%        ExpInfo.PhotodiodeFiles(thisTableIndex) = {fullfile(photodiodeFiles(ifile).folder,photodiodeFiles(ifile).name)};
         ExpInfo.VideoCSVFiles(thisTableIndex) = {fullfile(videoCSVFiles(ifile).folder,videoCSVFiles(ifile).name)};
         ExpInfo.VideoFiles(thisTableIndex) = {fullfile(videoFiles(ifile).folder,videoFiles(ifile).name)};
     end
