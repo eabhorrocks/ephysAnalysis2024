@@ -1,13 +1,13 @@
 %% create cluster table (DEV)
 
-function units = createClusterTable(Subject, Session, BaseDir, SorterName)
+function units = createClusterTable(ephysDir, SorterName)
 
 % Subject = 'M24019';
 % Session = '20240718';
 % BaseDir = 'Z:\ibn-vision\DATA\SUBJECTS';
 % SorterName = 'kilosort4_merged';
-kilosortDir = fullfile(BaseDir,Subject,'ephys',Session,'spike_sorting','probe0','sorters',SorterName);
-extensionsDir = fullfile(BaseDir,Subject,'ephys',Session,'spike_sorting','probe0','waveform',SorterName,'extensions');
+kilosortDir = fullfile(ephysDir,'spike_sorting','probe0','sorters',SorterName);
+extensionsDir = fullfile(ephysDir,'spike_sorting','probe0','sorters',SorterName,'waveform','extensions');
 
 
 imSampRate=30000; % load from .meta file

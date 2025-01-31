@@ -1,17 +1,17 @@
-function [ExpInfo, ephysDir, nidqDir, bonsaiDir] = getExpInfo(BaseDir, Subject, Session)
+function [ExpInfo, ephysDir, nidqDir, bonsaiDir] = getExpInfo(BaseDir, Subject, Session, AcquisitionsID)
 
 % function uses a gkey file (user-made) to construct an Experiment Info
 % table with corresponding sample/timestamps and bonsai csv files for each
 % stimulus
 
 %% paths to required directories
-ephysDir = fullfile(BaseDir,Subject,'ephys',Session);
-nidqDir = fullfile(BaseDir,Subject,'ephys',Session,'nidq_processed');
-bonsaiDir = fullfile(BaseDir,Subject,'Bonsai',Session);
+ephysDir = fullfile(BaseDir,Subject,'ephys',Session,['Processed_',AcquisitionsID]);
+nidqDir = fullfile(ephysDir,'nidq_processed');
+bonsaiDir = fullfile(BaseDir,Subject,'Bonsai',Session,[Session,'_',AcquisitionsID]);
 
 %% load gkey + catGT files and generate exp info table
 
-gkeyFile = dir(fullfile(ephysDir,'*gkey.csv'));
+gkeyFile = dir(fullfile(ephysDir,['*_',AcquisitionsID,'_','gkey.csv']));
 gkeyTable = readtable(fullfile(gkeyFile.folder, gkeyFile.name));
 
 % sample/time offsets for catGT concatenation
