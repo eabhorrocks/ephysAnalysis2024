@@ -7,7 +7,7 @@ function [ExpInfo, ephysDir, nidqDir, bonsaiDir] = getExpInfo(BaseDir, Subject, 
 %% paths to required directories
 ephysDir = fullfile(BaseDir,Subject,'ephys',Session,['Processed_',AcquisitionsID]);
 nidqDir = fullfile(ephysDir,'nidq_processed');
-bonsaiDir = fullfile(BaseDir,Subject,'Bonsai',Session,[Session,'_',AcquisitionsID]);
+bonsaiDir = fullfile(ephysDir,'bonsai_files');
 
 %% load gkey + catGT files and generate exp info table
 
@@ -88,12 +88,27 @@ uniqueStimuli = unique(ExpInfo.Stimulus);
 for istim = 1:numel(uniqueStimuli)
 
     stimulus = uniqueStimuli{istim};
+    % need to make this appropriately flexible
+    % *****************************
+    % trialParamsFiles = dir(fullfile(bonsaiDir,['*',stimulus,'*','_Trial*']));
+    % wheelFiles = dir(fullfile(bonsaiDir,['*',stimulus,'*','_Wheel*']));
+    % photodiodeFiles = dir(fullfile(bonsaiDir,['*',stimulus,'*','_Photodiode*']));
+    % videoCSVFiles = dir(fullfile(bonsaiDir,['*',stimulus,'*','video*.csv']));
+    % videoFiles = dir(fullfile(bonsaiDir,['*',stimulus,'*','video*.avi']));
 
-    trialParamsFiles = dir(fullfile(bonsaiDir,['*_',stimulus,'_TrialParams*']));
-    wheelFiles = dir(fullfile(bonsaiDir,['*_',stimulus,'_Wheel*']));
-    photodiodeFiles = dir(fullfile(bonsaiDir,['*_',stimulus,'_Photodiode*']));
-    videoCSVFiles = dir(fullfile(bonsaiDir,['*_',stimulus,'_video*.csv']));
-    videoFiles = dir(fullfile(bonsaiDir,['*_',stimulus,'_video*.avi']));
+    %%%%%%%%
+   
+    % trial params
+    trialParamsFiles = findFilesWithStrings(bonsaiDir, {'Trial', Subject}, '.csv', {stimulus});
+    wheelFiles = findFilesWithStrings(bonsaiDir, {'wheel', Subject}, '.csv', {stimulus});
+    photodiodeFiles = findFilesWithStrings(bonsaiDir, {'photodiode', Subject}, '.csv',{stimulus});
+    videoCSVFiles = findFilesWithStrings(bonsaiDir, {'video', Subject}, '.csv',{stimulus});
+    videoFiles = findFilesWithStrings(bonsaiDir, {Subject}, '.avi',{stimulus});
+    arduinoStimFiles = findFilesWithStrings(bonsaiDir, {,'ArduinoStim', Subject}, '.csv',{stimulus});
+
+
+
+%%%%%%%%%
 
     nParamsFiles = numel(trialParamsFiles);
     nWheelFiles = numel(trialParamsFiles);
@@ -120,9 +135,10 @@ for istim = 1:numel(uniqueStimuli)
     if nVideoCSVFiles~=nGkeyIdx
         error(['Number of video csv files found doesnt match number of gkey entries for stimulus: ', stimulus])
     end
-    if nVideoFiles~=nGkeyIdx
-        error(['Number of video files found doesnt match number of gkey entries for stimulus: ', stimulus])
-    end
+% can be multiple videos for each stimulus, so skipping this for now
+    % if nVideoFiles~=nGkeyIdx
+        % error(['Number of video files found doesnt match number of gkey entries for stimulus: ', stimulus])
+    % end
 
     allGkeyIdx = find((strcmp(ExpInfo.Stimulus, stimulus)));
 
@@ -134,6 +150,7 @@ for istim = 1:numel(uniqueStimuli)
 %        ExpInfo.PhotodiodeFiles(thisTableIndex) = {fullfile(photodiodeFiles(ifile).folder,photodiodeFiles(ifile).name)};
         ExpInfo.VideoCSVFiles(thisTableIndex) = {fullfile(videoCSVFiles(ifile).folder,videoCSVFiles(ifile).name)};
         ExpInfo.VideoFiles(thisTableIndex) = {fullfile(videoFiles(ifile).folder,videoFiles(ifile).name)};
+        ExpInfo.ArduinoStimFiles(thisTableIndex) = {fullfile(arduinoStimFiles(ifile).folder,arduinoStimFiles(ifile).name)};
     end
 
     end

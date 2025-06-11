@@ -7,7 +7,7 @@ function units = createClusterTable(ephysDir, SorterName)
 % BaseDir = 'Z:\ibn-vision\DATA\SUBJECTS';
 % SorterName = 'kilosort4_merged';
 kilosortDir = fullfile(ephysDir,'spike_sorting','probe0','sorters',SorterName);
-extensionsDir = fullfile(ephysDir,'spike_sorting','probe0','sorters',SorterName,'waveform','extensions');
+extensionsDir = fullfile(ephysDir,'spike_sorting','probe0','sorters',SorterName,'metrics','extensions');
 
 
 imSampRate=30000; % load from .meta file
@@ -50,6 +50,7 @@ end
 unitLocs = readNPY(fullfile(extensionsDir,'unit_locations','unit_locations.npy'));
 for icluster = 1:height(cluster_metrics)
     cluster_metrics.location(icluster,:) = unitLocs(icluster,:);
+    cluster_metrics.shank(icluster) = round(unitLocs(icluster,1)./250);
 end
 
 %%
