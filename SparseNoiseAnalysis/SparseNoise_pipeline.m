@@ -1,17 +1,15 @@
 
 BaseDir = 'Z:\ibn-vision\DATA\SUBJECTS';
-Subject = 'M25065';
-Session = '20250610';
-AcquisitionsID = '2';
+Subject = 'M25071';
+Session = '20250813';
+AcquisitionsID = '3';
 SorterName = 'kilosort4';
+ 
+% grid_size = [8, 16];
+grid_size = [12, 24];
 
 %% load ephys and nidaq data info
 
-% Subject = 'M24077';
-% Session = '20241219';
-% AcquisitionsID = '1';
-% BaseDir = 'Z:\ibn-vision\DATA\SUBJECTS';
-% kilosortDir = fullfile(BaseDir,Subject,'ephys',Session,'spike_sorting','probe0','sorters','kilosort3_merged');
 
 [ExpInfo, ephysDir, nidqDir, bonsaiDir] = getExpInfo(BaseDir, Subject, Session,AcquisitionsID);
 
@@ -47,8 +45,7 @@ fileID=fopen(fullfile(files(1).folder,files(1).name)); % load the bin file
 thisBinFile=fread(fileID);
 fclose(fileID);
 
-grid_size = [8, 16];
-% grid_size = [16, 32];
+
 
 % Translate stimulus into -1:1 scale
 stim_matrix = zeros(1,length(thisBinFile));
@@ -116,11 +113,11 @@ downSwings = [idx(1), downSwings];
 
 stim_times = sort(thisTime([upSwings, downSwings]));
 
-%% get rf
+%% get binned spikes (should update to use own function)
 
 sn_options.grid_size = [size(stim_matrix,1) size(stim_matrix,2)];
 sn_options.mapSampleRate = 60; % Hz
-sn_options.mapsToShow = {'linear','black','white','contrast'};
+sn_options.mapsToShow = {'linear', 'black','white','contrast'};
 sn_options.mapMethod = 'mean'; % fitlm mean
 sn_options.framesToShow = 1:7;  % at 60 Hz would be 8 ms, 40, 72 etc
 sn_options.plotflag = 0; % 1 if you want to see details of the receptive fields
@@ -136,7 +133,14 @@ for iunit = 1:length(units)
 end
 toc
 
-%
+%% fit RFs
+
+% check how much data needed
+% stim_matrix = stim_matrix(:,:,3000);
+% resps = resps(:,:,3000);
+
+resps = resps(:,:,1:3000);
+stim_matrix = stim_matrix(:,:,1:3000);
 
 scal_f=10;
 sigma=3;
@@ -144,6 +148,7 @@ tic
 for iunit = 1:numel(units)
     % iunit
     SUA_data = squeeze(resps(iunit,:,:))'; % returns 1 x N time bins x nFrames;
+    SUA_data = SUA_data(1:size(stim_matrix,3),:); % sometimes theres an extra element
     tempRF = sparseNoiseAnalysis(stim_matrix,SUA_data,[],[],sn_options);
     units(iunit).allRF = tempRF;
 
@@ -157,70 +162,71 @@ end
 toc
 
 
-
-
-
 %% filter units if desired (e.g. for diff areas)
 
 allocs = cat(1,units.location);
 filtUnits=units;
-% filtUnits = units(alllocs(:,2)<4000);
+% filtUnits = units(allocs(:,2)>4000);
 
 %% plot average RFs by location
 % by shank
-figure
-for ishank = 0:3
-    subplot(2,2,ishank+1)
-    idx = find([filtUnits.shank]==ishank);
-    rf = mean(cat(3,filtUnits(idx).normRF),3);
-    imagesc(flipud(rf))
-    xlabel('Azimuth')
-    ylabel('Elevation')
-    xticks(linspace(1,size(rf,2),13))
-    xticklabels(-120:20:120)
-    yticks(linspace(1,size(rf,1),7))
-    yticklabels(-60:20:60)
-    title(sprintf('Shank %i Receptive field',ishank))
-    % colorbar
-    % colormap(1-gray)
-    axis xy
-end
+% figure
+% for ishank = 0:3
+%     subplot(2,2,ishank+1)
+%     idx = find([filtUnits.shank]==ishank);
+%     rf = mean(cat(3,filtUnits(idx).normRF),3);
+%     if ~isempty(rf)
+%         imagesc(flipud(rf))
+%         xlabel('Azimuth')
+%         ylabel('Elevation')
+%         xticks(linspace(1,size(rf,2),13))
+%         xticklabels(-120:20:120)
+%         yticks(linspace(1,size(rf,1),7))
+%         yticklabels(-60:20:60)
+%         title(sprintf('Shank %i Receptive field',ishank))
+%         % colorbar
+%         % colormap(1-gray)
+%         axis xy
+%     else
+%         warning('No units found on shank %d', ishank);
+%     end
+% end
 
 %% plot RF by shank and depth
 % split depth into
-
-
-nDepthSplits=10;
-maxVal = max(allocs(:,2));
-minVal = min(allocs(:,2));
-edges = linspace(minVal,maxVal,nDepthSplits+1);
-depth_disc = discretize(allocs(:,2),edges)';
-
-iplot=0;
-for idepth = nDepthSplits:-1:1
-
-    for ishank=0:3
-
-        iplot=iplot+1;
-try
-        subplot(nDepthSplits,4, iplot)
-        idx = find([units.shank]==ishank & depth_disc==idepth);
-        rf = mean(cat(3,units(idx).normRF),3);
-        imagesc(flipud(rf))
-        xlabel('Azimuth')
-        ylabel('Elevation')
-        xticks(linspace(1,size(rf,2),13))
-        xticklabels(-120:20:120)
-        yticks(linspace(1,size(rf,1),7))
-        yticklabels(-60:20:60)
-        title(sprintf('Shank %i, Depth %i',ishank,idepth))
-        % colorbar
-        % colormap(1-gray)
-        axis xy
-catch
-end
-    end
-end
+% figure
+% 
+% nDepthSplits=10;
+% maxVal = max(allocs(:,2));
+% minVal = min(allocs(:,2));
+% edges = linspace(minVal,maxVal,nDepthSplits+1);
+% depth_disc = discretize(allocs(:,2),edges)';
+% 
+% iplot=0;
+% for idepth = nDepthSplits:-1:1
+% 
+%     for ishank=0:3
+% 
+%         iplot=iplot+1;
+%         try
+%             subplot(nDepthSplits,4, iplot)
+%             idx = find([units.shank]==ishank & depth_disc==idepth);
+%             rf = mean(cat(3,units(idx).normRF),3);
+%             imagesc(flipud(rf))
+%             xlabel('Azimuth')
+%             ylabel('Elevation')
+%             xticks(linspace(1,size(rf,2),13))
+%             xticklabels(-120:20:120)
+%             yticks(linspace(1,size(rf,1),7))
+%             yticklabels(-60:20:60)
+%             title(sprintf('Shank %i, Depth %i',ishank,idepth))
+%             % colorbar
+%             % colormap(1-gray)
+%             axis xy
+%         catch
+%         end
+%     end
+% end
 
 
 
@@ -229,70 +235,87 @@ end
 
 idx = find([filtUnits.firing_rate]>3);
 
-for iunit = 1:numel(idx)
-
-    thisMap_s = filtUnits(idx(iunit)).smthRF;
-    imagesc(flipud(thisMap_s))
-    xlabel('Azimuth')
-    ylabel('Elevation')
-    xticks(linspace(1,size(thisMap_s,2),13))
-    xticklabels(-120:20:120)
-    yticks(linspace(1,size(thisMap_s,1),7))
-    yticklabels(-60:20:60)
-    title(sprintf('Unit: %i, Shank: %i', idx(iunit), filtUnits(idx(iunit)).shank))
-    colorbar
-    set(gca,"TickDir","out",'box', 'off','Color','none','FontSize',12)
-    axis equal, axis xy
-    % abv = abs(max(units(idx(iunit)).smthRF(:)));
-    % colormap(redblue), clim([-abv abv])
-    pause
-    close
-end
-%
-
-%% plot multiple at a time
-%
-% idx=1:numel(units);
-% tic
-% for iunit = 1:numel(idx)
-%     % For every new set of 20, open a new figure (except for the first set)
-%     if mod(iunit-1, 35) == 0
-%         if iunit > 1
-%             % pause;      % Wait for user input after a set of 20
-%             % close(gcf); % Close the current figure
-%         end
-%         figure;         % Open a new figure
-%     end
-%
-%     % Create subplot in a 4x5 grid
-%     subplot(7, 5, mod(iunit-1, 35) + 1)
-%
-%     % Plot the receptive field
-%     thisMap_s = units(idx(iunit)).smthRF;
+% for iunit =186% 1:numel(idx)
+% 
+%     thisMap_s = filtUnits(idx(iunit)).smthRF;
 %     imagesc(flipud(thisMap_s))
 %     xlabel('Azimuth')
 %     ylabel('Elevation')
-%     xticks(linspace(1, size(thisMap_s, 2), 13))
+%     xticks(linspace(1,size(thisMap_s,2),13))
 %     xticklabels(-120:20:120)
-%     yticks(linspace(1, size(thisMap_s, 1), 7))
+%     yticks(linspace(1,size(thisMap_s,1),7))
 %     yticklabels(-60:20:60)
-%     title(sprintf('Unit %i', idx(iunit)))
+%     title(sprintf('Unit: %i, Shank: %i', idx(iunit), filtUnits(idx(iunit)).shank))
 %     colorbar
-%     set(gca, "TickDir", "out", 'box', 'off', 'Color', 'none', 'FontSize', 8)
-%     % axis equal,
-%     axis xy
-%     abv = abs(max(units(idx(iunit)).smthRF(:)));
-%     colormap(redblue), clim([-abv abv])
+%     set(gca,"TickDir","out",'box', 'off','Color','none','FontSize',12)
+%     axis equal, axis xy
+%     % abv = abs(max(units(idx(iunit)).smthRF(:)));
+%     % colormap(redblue), clim([-abv abv])
+%     pause
+%     close
 % end
+% %
+
+%% plot multiple at a time
 %
-% toc
-%
+doplot=true;
+if doplot
+% idx=1:numel(units);
+idx = find([units.firing_rate]>1);% & [units.shank]==3);
+
+tic
+for iunit = 1:numel(idx)
+    % For every new set of panels, open a new figure (except for the first set)
+    if mod(iunit-1, 35) == 0
+        % if iunit > 1
+            % pause;      % Wait for user input after a set of 20
+            % close(gcf); % Close the current figure
+        % end
+        figure;         % Open a new figure
+    end
+
+    % Create subplot in a 4x5 grid
+    subplot(7, 5, mod(iunit-1, 35) + 1)
+
+    % Plot the receptive field
+    thisMap_s = units(idx(iunit)).smthRF;
+    imagesc(flipud(thisMap_s))
+    xlabel('Azimuth')
+    ylabel('Elevation')
+    xticks(linspace(1, size(thisMap_s, 2), 13))
+    xticklabels(-120:20:120)
+    yticks(linspace(1, size(thisMap_s, 1), 7))
+    yticklabels(-60:20:60)
+    title(sprintf('Unit %i', idx(iunit)))
+    colorbar
+    set(gca, "TickDir", "out", 'box', 'off', 'Color', 'none', 'FontSize', 8)
+    % axis equal,
+    axis xy
+    abv = abs(max(units(idx(iunit)).smthRF(:)));
+    % colormap(redblue), clim([-abv abv])
+end
+
+toc
+end
+
+%% plot locations of good rfs
+
+good_idx = [201 208 209 210 213 224 228 233 237 239 240 244 246 249 251 261 266 267 273 274 276 283 284 289 291 292 293 294 295 297];
+
+allocs= cat(1,units.location);
+
+figure, hold on
+plot(allocs(:,1), allocs(:,2),'k.');
+plot(allocs([good_idx],1), allocs([good_idx],2),'r*')
+
+
+pitch = 32;
+1500/32
 %
 %
 %
 % %% look at a subset of units
 %
-% idx= [42, 44, 66, 76, 101, 142, 97, 431]
 %
 % sn_options.grid_size = [size(stim_matrix,1) size(stim_matrix,2)];
 % sn_options.mapSampleRate = 100; % Hz

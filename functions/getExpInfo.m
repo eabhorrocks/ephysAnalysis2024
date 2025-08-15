@@ -97,14 +97,15 @@ for istim = 1:numel(uniqueStimuli)
     % videoFiles = dir(fullfile(bonsaiDir,['*',stimulus,'*','video*.avi']));
 
     %%%%%%%%
-   
+    stimulusTokens = strsplit(stimulus, '_'); 
+
     % trial params
-    trialParamsFiles = findFilesWithStrings(bonsaiDir, {'Trial', Subject}, '.csv', {stimulus});
-    wheelFiles = findFilesWithStrings(bonsaiDir, {'wheel', Subject}, '.csv', {stimulus});
-    photodiodeFiles = findFilesWithStrings(bonsaiDir, {'photodiode', Subject}, '.csv',{stimulus});
-    videoCSVFiles = findFilesWithStrings(bonsaiDir, {'video', Subject}, '.csv',{stimulus});
-    videoFiles = findFilesWithStrings(bonsaiDir, {Subject}, '.avi',{stimulus});
-    arduinoStimFiles = findFilesWithStrings(bonsaiDir, {,'ArduinoStim', Subject}, '.csv',{stimulus});
+    trialParamsFiles = findFilesWithStrings(bonsaiDir, {'Trial', Subject}, '.csv', stimulusTokens);
+    wheelFiles = findFilesWithStrings(bonsaiDir, {'Wheel', Subject}, '.csv', stimulusTokens);
+    photodiodeFiles = findFilesWithStrings(bonsaiDir, {'photodiode', Subject}, '.csv',stimulusTokens);
+    videoCSVFiles = findFilesWithStrings(bonsaiDir, {'video', Subject}, '.csv',stimulusTokens);
+    videoFiles = findFilesWithStrings(bonsaiDir, {Subject}, '.avi',stimulusTokens);
+    arduinoStimFiles = findFilesWithStrings(bonsaiDir, {,'ArduinoStim', Subject}, '.csv',stimulusTokens);
 
 
 
@@ -150,7 +151,11 @@ for istim = 1:numel(uniqueStimuli)
 %        ExpInfo.PhotodiodeFiles(thisTableIndex) = {fullfile(photodiodeFiles(ifile).folder,photodiodeFiles(ifile).name)};
         ExpInfo.VideoCSVFiles(thisTableIndex) = {fullfile(videoCSVFiles(ifile).folder,videoCSVFiles(ifile).name)};
         ExpInfo.VideoFiles(thisTableIndex) = {fullfile(videoFiles(ifile).folder,videoFiles(ifile).name)};
+        try
         ExpInfo.ArduinoStimFiles(thisTableIndex) = {fullfile(arduinoStimFiles(ifile).folder,arduinoStimFiles(ifile).name)};
+        catch
+            warning('No Arduino stim files found for %s', stimulus)
+        end
     end
 
     end
