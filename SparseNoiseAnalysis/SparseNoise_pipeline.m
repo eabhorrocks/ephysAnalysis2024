@@ -1,12 +1,13 @@
 
 BaseDir = 'Z:\ibn-vision\DATA\SUBJECTS';
-Subject = 'M25071';
-Session = '20250813';
-AcquisitionsID = '3';
+Subject = 'M25104';
+Session = '20250902';
+AcquisitionsID = '0';
 SorterName = 'kilosort4';
  
-% grid_size = [8, 16];
-grid_size = [12, 24];
+% grid_size = [8, 16]; % 15 deg, normal cortex
+ grid_size = [12, 24]; % 10 deg
+% grid_size = [16, 32]; % 7.5deg, normal lgn 
 
 %% load ephys and nidaq data info
 
@@ -139,8 +140,8 @@ toc
 % stim_matrix = stim_matrix(:,:,3000);
 % resps = resps(:,:,3000);
 
-resps = resps(:,:,1:3000);
-stim_matrix = stim_matrix(:,:,1:3000);
+% resps = resps(:,:,1:3000);
+% stim_matrix = stim_matrix(:,:,1:3000);
 
 scal_f=10;
 sigma=3;
@@ -162,71 +163,81 @@ end
 toc
 
 
+%% save
+
+fname = [Subject, '_', Session, '_', AcquisitionsID, '_RFs.mat'];
+try
+    save(fname, 'units');
+catch
+    save(fname, 'units', '-v7.3')
+end
+
+end
 %% filter units if desired (e.g. for diff areas)
 
 allocs = cat(1,units.location);
 filtUnits=units;
 % filtUnits = units(allocs(:,2)>4000);
 
-%% plot average RFs by location
-% by shank
-% figure
-% for ishank = 0:3
-%     subplot(2,2,ishank+1)
-%     idx = find([filtUnits.shank]==ishank);
-%     rf = mean(cat(3,filtUnits(idx).normRF),3);
-%     if ~isempty(rf)
-%         imagesc(flipud(rf))
-%         xlabel('Azimuth')
-%         ylabel('Elevation')
-%         xticks(linspace(1,size(rf,2),13))
-%         xticklabels(-120:20:120)
-%         yticks(linspace(1,size(rf,1),7))
-%         yticklabels(-60:20:60)
-%         title(sprintf('Shank %i Receptive field',ishank))
-%         % colorbar
-%         % colormap(1-gray)
-%         axis xy
-%     else
-%         warning('No units found on shank %d', ishank);
-%     end
-% end
+%% plot average RFs by shank
+
+figure
+for ishank = 0:3
+    subplot(2,2,ishank+1)
+    idx = find([filtUnits.shank]==ishank);
+    rf = nanmean(cat(3,filtUnits(idx).normRF),3);
+    if ~isempty(rf)
+        imagesc(flipud(rf))
+        xlabel('Azimuth')
+        ylabel('Elevation')
+        xticks(linspace(1,size(rf,2),13))
+        xticklabels(-120:20:120)
+        yticks(linspace(1,size(rf,1),7))
+        yticklabels(-60:20:60)
+        title(sprintf('Shank %i Receptive field',ishank))
+        % colorbar
+        % colormap(1-gray)
+        axis xy
+    else
+        warning('No units found on shank %d', ishank);
+    end
+end
 
 %% plot RF by shank and depth
-% split depth into
-% figure
-% 
-% nDepthSplits=10;
-% maxVal = max(allocs(:,2));
-% minVal = min(allocs(:,2));
-% edges = linspace(minVal,maxVal,nDepthSplits+1);
-% depth_disc = discretize(allocs(:,2),edges)';
-% 
-% iplot=0;
-% for idepth = nDepthSplits:-1:1
-% 
-%     for ishank=0:3
-% 
-%         iplot=iplot+1;
-%         try
-%             subplot(nDepthSplits,4, iplot)
-%             idx = find([units.shank]==ishank & depth_disc==idepth);
-%             rf = mean(cat(3,units(idx).normRF),3);
-%             imagesc(flipud(rf))
-%             xlabel('Azimuth')
-%             ylabel('Elevation')
-%             xticks(linspace(1,size(rf,2),13))
-%             xticklabels(-120:20:120)
-%             yticks(linspace(1,size(rf,1),7))
-%             yticklabels(-60:20:60)
-%             title(sprintf('Shank %i, Depth %i',ishank,idepth))
-%             % colorbar
-%             % colormap(1-gray)
-%             axis xy
-%         catch
-%         end
-%     end
-% end
+%split depth into
+figure
+
+nDepthSplits=10;
+maxVal = max(allocs(:,2));
+minVal = min(allocs(:,2));
+edges = linspace(minVal,maxVal,nDepthSplits+1);
+depth_disc = discretize(allocs(:,2),edges)';
+
+iplot=0;
+for idepth = nDepthSplits:-1:1
+
+    for ishank=0:3
+
+        iplot=iplot+1;
+        try
+            subplot(nDepthSplits,4, iplot)
+            idx = find([units.shank]==ishank & depth_disc==idepth);
+            rf = nanmean(cat(3,units(idx).normRF),3);
+            imagesc(flipud(rf))
+            xlabel('Azimuth')
+            ylabel('Elevation')
+            xticks(linspace(1,size(rf,2),13))
+            xticklabels(-120:20:120)
+            yticks(linspace(1,size(rf,1),7))
+            yticklabels(-60:20:60)
+            title(sprintf('Shank %i, Depth %i',ishank,idepth))
+            % colorbar
+            % colormap(1-gray)
+            axis xy
+        catch
+        end
+    end
+end
 
 
 
@@ -300,8 +311,8 @@ end
 
 %% plot locations of good rfs
 
-good_idx = [201 208 209 210 213 224 228 233 237 239 240 244 246 249 251 261 266 267 273 274 276 283 284 289 291 292 293 294 295 297];
-
+ good_idx = [41 108, 145, 134, 156, 165, 175, 188, 283, 362, 367, 375, 498, 508, 600, 673, 752]
+% 
 allocs= cat(1,units.location);
 
 figure, hold on
@@ -311,37 +322,37 @@ plot(allocs([good_idx],1), allocs([good_idx],2),'r*')
 
 pitch = 32;
 1500/32
-%
-%
-%
-% %% look at a subset of units
-%
-%
-% sn_options.grid_size = [size(stim_matrix,1) size(stim_matrix,2)];
-% sn_options.mapSampleRate = 100; % Hz
-% sn_options.mapsToShow = {'linear','black','white','contrast'};
-% sn_options.mapMethod = 'fitlm'; % fitlm mean
-% sn_options.framesToShow = 1:12;  % at 60 Hz would be 8 ms, 40, 72 etc
-% sn_options.plotflag = 1; % 1 if you want to see details of the receptive fields
-%
-% bin_size = 1/100;
-% AnalysisTimeWindow = [0 1/100*12];
-%
-%
-% tic
-% for iunit = 1:length(units)
-%     spikes_this_cell = units(iunit).spike_times;
-%
-%     [psth, bins, rasterX, rasterY, spikeCounts, binnedArray] = psthAndBA(spikes_this_cell, stim_times, AnalysisTimeWindow, bin_size);
-%     resps(iunit,:,:) = binnedArray';
-%
-% end
-% toc
-%
-% for iunit = 1:numel(idx)
-%     SUA_data = squeeze(resps(idx(iunit),:,:))'; % returns 1 x N time bins x nFrames;
-%
-%     sn_options.figName =  ['sh: ', num2str(round(locs(idx(iunit),1)./250))];
-%     tempRF = sparseNoiseAnalysis(stim_matrix,SUA_data,[],[],sn_options);
-%     pause
-% end
+
+
+
+%% look at a subset of units
+
+
+sn_options.grid_size = [size(stim_matrix,1) size(stim_matrix,2)];
+sn_options.mapSampleRate = 100; % Hz
+sn_options.mapsToShow = {'linear','black','white','contrast'};
+sn_options.mapMethod = 'fitlm'; % fitlm mean
+sn_options.framesToShow = 1:12;  % at 60 Hz would be 8 ms, 40, 72 etc
+sn_options.plotflag = 1; % 1 if you want to see details of the receptive fields
+
+bin_size = 1/100;
+AnalysisTimeWindow = [0 1/100*12];
+
+
+tic
+for iunit = 1:length(units)
+    spikes_this_cell = units(iunit).spike_times;
+
+    [psth, bins, rasterX, rasterY, spikeCounts, binnedArray] = psthAndBA(spikes_this_cell, stim_times, AnalysisTimeWindow, bin_size);
+    resps(iunit,:,:) = binnedArray';
+
+end
+toc
+
+for iunit = 1:numel(idx)
+    SUA_data = squeeze(resps(idx(iunit),:,:))'; % returns 1 x N time bins x nFrames;
+
+    sn_options.figName =  ['sh: ', num2str(round(locs(idx(iunit),1)./250))];
+    tempRF = sparseNoiseAnalysis(stim_matrix,SUA_data,[],[],sn_options);
+    pause
+end
