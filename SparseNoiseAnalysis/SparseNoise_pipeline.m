@@ -1,13 +1,14 @@
+%% Sparse noise analysis pipeline
 
 BaseDir = 'Z:\ibn-vision\DATA\SUBJECTS';
 Subject = 'M25104';
 Session = '20250902';
 AcquisitionsID = '0';
 SorterName = 'kilosort4';
- 
+
 % grid_size = [8, 16]; % 15 deg, normal cortex
- grid_size = [12, 24]; % 10 deg
-% grid_size = [16, 32]; % 7.5deg, normal lgn 
+grid_size = [12, 24]; % 10 deg
+% grid_size = [16, 32]; % 7.5deg, normal lgn
 
 %% load ephys and nidaq data info
 
@@ -172,7 +173,7 @@ catch
     save(fname, 'units', '-v7.3')
 end
 
-end
+
 %% filter units if desired (e.g. for diff areas)
 
 allocs = cat(1,units.location);
@@ -247,7 +248,7 @@ end
 idx = find([filtUnits.firing_rate]>3);
 
 % for iunit =186% 1:numel(idx)
-% 
+%
 %     thisMap_s = filtUnits(idx(iunit)).smthRF;
 %     imagesc(flipud(thisMap_s))
 %     xlabel('Azimuth')
@@ -271,48 +272,48 @@ idx = find([filtUnits.firing_rate]>3);
 %
 doplot=true;
 if doplot
-% idx=1:numel(units);
-idx = find([units.firing_rate]>1);% & [units.shank]==3);
+    % idx=1:numel(units);
+    idx = find([units.firing_rate]>1);% & [units.shank]==3);
 
-tic
-for iunit = 1:numel(idx)
-    % For every new set of panels, open a new figure (except for the first set)
-    if mod(iunit-1, 35) == 0
-        % if iunit > 1
+    tic
+    for iunit = 1:numel(idx)
+        % For every new set of panels, open a new figure (except for the first set)
+        if mod(iunit-1, 35) == 0
+            % if iunit > 1
             % pause;      % Wait for user input after a set of 20
             % close(gcf); % Close the current figure
-        % end
-        figure;         % Open a new figure
+            % end
+            figure;         % Open a new figure
+        end
+
+        % Create subplot in a 4x5 grid
+        subplot(7, 5, mod(iunit-1, 35) + 1)
+
+        % Plot the receptive field
+        thisMap_s = units(idx(iunit)).smthRF;
+        imagesc(flipud(thisMap_s))
+        xlabel('Azimuth')
+        ylabel('Elevation')
+        xticks(linspace(1, size(thisMap_s, 2), 13))
+        xticklabels(-120:20:120)
+        yticks(linspace(1, size(thisMap_s, 1), 7))
+        yticklabels(-60:20:60)
+        title(sprintf('Unit %i', idx(iunit)))
+        colorbar
+        set(gca, "TickDir", "out", 'box', 'off', 'Color', 'none', 'FontSize', 8)
+        % axis equal,
+        axis xy
+        abv = abs(max(units(idx(iunit)).smthRF(:)));
+        % colormap(redblue), clim([-abv abv])
     end
 
-    % Create subplot in a 4x5 grid
-    subplot(7, 5, mod(iunit-1, 35) + 1)
-
-    % Plot the receptive field
-    thisMap_s = units(idx(iunit)).smthRF;
-    imagesc(flipud(thisMap_s))
-    xlabel('Azimuth')
-    ylabel('Elevation')
-    xticks(linspace(1, size(thisMap_s, 2), 13))
-    xticklabels(-120:20:120)
-    yticks(linspace(1, size(thisMap_s, 1), 7))
-    yticklabels(-60:20:60)
-    title(sprintf('Unit %i', idx(iunit)))
-    colorbar
-    set(gca, "TickDir", "out", 'box', 'off', 'Color', 'none', 'FontSize', 8)
-    % axis equal,
-    axis xy
-    abv = abs(max(units(idx(iunit)).smthRF(:)));
-    % colormap(redblue), clim([-abv abv])
-end
-
-toc
+    toc
 end
 
 %% plot locations of good rfs
 
- good_idx = [41 108, 145, 134, 156, 165, 175, 188, 283, 362, 367, 375, 498, 508, 600, 673, 752]
-% 
+good_idx = [41 108, 145, 134, 156, 165, 175, 188, 283, 362, 367, 375, 498, 508, 600, 673, 752]
+%
 allocs= cat(1,units.location);
 
 figure, hold on

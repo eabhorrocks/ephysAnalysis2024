@@ -102,20 +102,20 @@ for istim = 1:numel(uniqueStimuli)
     % trial params
     trialParamsFiles = findFilesWithStrings(bonsaiDir, {'Trial', Subject}, '.csv', stimulusTokens);
     wheelFiles = findFilesWithStrings(bonsaiDir, {'Wheel', Subject}, '.csv', stimulusTokens);
-    photodiodeFiles = findFilesWithStrings(bonsaiDir, {'photodiode', Subject}, '.csv',stimulusTokens);
+    photodiodeFiles = findFilesWithStrings(bonsaiDir, {'PDAsync', Subject}, '.csv',stimulusTokens);
     videoCSVFiles = findFilesWithStrings(bonsaiDir, {'video', Subject}, '.csv',stimulusTokens);
     videoFiles = findFilesWithStrings(bonsaiDir, {Subject}, '.avi',stimulusTokens);
-    arduinoStimFiles = findFilesWithStrings(bonsaiDir, {,'ArduinoStim', Subject}, '.csv',stimulusTokens);
+    arduinoStimFiles = findFilesWithStrings(bonsaiDir, {'ArduinoStim', Subject}, '.csv',stimulusTokens);
 
 
 
 %%%%%%%%%
 
     nParamsFiles = numel(trialParamsFiles);
-    nWheelFiles = numel(trialParamsFiles);
-    nPhotodiodeFiles = numel(trialParamsFiles);
-    nVideoCSVFiles = numel(trialParamsFiles);
-    nVideoFiles = numel(trialParamsFiles);
+    nWheelFiles = numel(wheelFiles);
+    nPhotodiodeFiles = numel(photodiodeFiles);
+    nVideoCSVFiles = numel(videoCSVFiles);
+    nVideoFiles = numel(videoFiles);
 
     nGkeyIdx = sum(strcmp(ExpInfo.Stimulus, stimulus));
 
@@ -126,6 +126,7 @@ for istim = 1:numel(uniqueStimuli)
     end
     catch
         debug=1;
+    end
     end
     if nWheelFiles~=nGkeyIdx
         error(['Number of wheel files found doesnt match number of gkey entries for stimulus: ', stimulus])
@@ -145,10 +146,15 @@ for istim = 1:numel(uniqueStimuli)
 
     for ifile = 1:nGkeyIdx
         thisTableIndex = allGkeyIdx(ifile);
-
+        if ~ismember(stimulus,{'Spontaneous', 'Behaviour', 'SparseNoise','invalid'})
         ExpInfo.TrialParamsFiles(thisTableIndex) = {fullfile(trialParamsFiles(ifile).folder,trialParamsFiles(ifile).name)};
+        end
         ExpInfo.WheelFiles(thisTableIndex) = {fullfile(wheelFiles(ifile).folder,wheelFiles(ifile).name)};
-%        ExpInfo.PhotodiodeFiles(thisTableIndex) = {fullfile(photodiodeFiles(ifile).folder,photodiodeFiles(ifile).name)};
+        try % need to add a check for valid stimuli that have photodiode
+        ExpInfo.PhotodiodeFiles(thisTableIndex) = {fullfile(photodiodeFiles(ifile).folder,photodiodeFiles(ifile).name)};
+        catch
+            warning(['No photodiode files found for: ', stimulus])
+        end
         ExpInfo.VideoCSVFiles(thisTableIndex) = {fullfile(videoCSVFiles(ifile).folder,videoCSVFiles(ifile).name)};
         ExpInfo.VideoFiles(thisTableIndex) = {fullfile(videoFiles(ifile).folder,videoFiles(ifile).name)};
         try

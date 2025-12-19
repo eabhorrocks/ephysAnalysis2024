@@ -74,6 +74,7 @@ for iunit = 1:numel(units)
 end
 
 %% get cross-validated R2 (tuning strength) 
+
 % options
 r2opts.nPerms = 10;
 r2opts.randFlag = 1;
