@@ -41,7 +41,7 @@ fprintf('Loaded %d trials from parameter file.\n', num_csv_trials);
 %% 2. Pre-process NIDQ Data to Find All Potential Trials
 
 
-[trialParams, stats] = alignPhotodiode(nidq, trialParams, 'plotAlignment', true);
+[trialParams] = alignPhotodiode(nidq, trialParams, 'plotAlignment', true);
 
 trials = table2struct(trialParams);
 
@@ -51,7 +51,7 @@ end
 %% helper function
 
 
-function [trialParams, stats] = alignPhotodiode(nidq, trialParams, varargin)
+function [trialParams] = alignPhotodiode(nidq, trialParams, varargin)
 % ALIGNPHOTODIODE_HIERARCHICAL Synchronizes NIDAQ photodiode signal with Bonsai.
 %   Strategy:
 %   1. CLEAN: Bridge gaps and remove spikes.
@@ -180,9 +180,21 @@ if n_pd <= n_ref
         first_fail = find(~is_aligned_per_trial, 1);
         fprintf('   -> FAIL: Mismatch at Interval #%d (Error: %.4fs). Switching to Search...\n', ...
             first_fail, time_diff(first_fail));
+        error('exiting for now')
     end
 else
-    fprintf('   -> NOTICE: PD has extra pulses (%d > %d). Skipping simple check. Switching to Search...\n', n_pd, n_ref);
+    fprintf('   -> NOTICE: PD has extra pulses (%d > %d). Skipping simple check. Assuming bonsai trialParams stopped logging.\n', n_pd, n_ref);
+    fprintf('Removing excess PD signals as trialParam info not available\n');
+
+    nTParams = height(trialParams);
+    startTimes = t_raw(final_on(1:nTParams));
+    endTimes = t_raw(final_off(1:nTParams));
+    alldurs = pd_durations(1:nTParams);
+
+    trialParams.startTime = startTimes(:);
+    trialParams.endTime = endTimes(:);
+    trialParams.ActualDuration = alldurs(:);
+
 end
 
 %% 4. Fallback: Cross-Correlation / Sliding Window Search
@@ -190,134 +202,135 @@ end
 % A) n_pd > n_ref (Extra pulses exist)
 % B) Simple alignment failed (The pulses we have don't match the start)
 
-if ~aligned_successfully
-    fprintf('Step 3: Performing Sliding Window Search...\n');
-    stats.method = 'Cross-correlation';
-    min_error = inf;
-    best_offset = 0;
+% if ~aligned_successfully
+%     fprintf('Step 3: Performing Sliding Window Search...\n');
+%     stats.method = 'Cross-correlation';
+%     min_error = inf;
+%     best_offset = 0;
+%
+%     % We only need to check offsets that allow the Arduino seq to fit inside PD seq
+%     max_offset = n_pd - n_ref;
+%
+%     for offset = 0:max_offset
+%         % Extract the snippet from PD that matches the length of Arduino
+%         pd_snippet = pd_ioi( (1:n_ref) + offset );
+%
+%         % Calculate error (L1 norm: sum of absolute differences)
+%         current_error = sum(abs(pd_snippet - ref_ioi))
+%
+%         if current_error < min_error
+%             min_error = current_error;
+%             best_offset = offset;
+%         end
+%     end
+%
+%     fprintf('Best fit found at index offset: %d\n', best_offset);
+%     fprintf('Total timing error at this alignment: %.4f seconds\n', min_error);
+%
+%     % Apply the Alignment (Offset 1)
+%     % Recalculate the indices using the found offset
+%     n_trials_table = height(trialParams); % e.g., 1618
+%     valid_start_idx = best_offset + 1;    % Start at pulse 2
+%     valid_end_idx = best_offset + n_trials_table; % Grab next 1618 pulses
+%
+%     % Extract the correct range of indices
+%     final_pd_indices = final_on(valid_start_idx : valid_end_idx);
+%     final_pd_offsets = final_off(valid_start_idx : valid_end_idx);
+%
+%     % Get the actual timestamps
+%     final_pd_startTimes = nidq.imecTime(final_pd_indices);
+%     final_pd_endTimes = nidq.imecTime(final_pd_offsets);
+%     final_pd_durations = final_pd_endTimes - final_pd_startTimes;
 
-    % We only need to check offsets that allow the Arduino seq to fit inside PD seq
-    max_offset = n_pd - n_ref;
-
-    for offset = 0:max_offset
-        % Extract the snippet from PD that matches the length of Arduino
-        pd_snippet = pd_ioi( (1:n_ref) + offset );
-
-        % Calculate error (L1 norm: sum of absolute differences)
-        current_error = sum(abs(pd_snippet - ref_ioi));
-
-        if current_error < min_error
-            min_error = current_error;
-            best_offset = offset;
-        end
-    end
-
-    fprintf('Best fit found at index offset: %d\n', best_offset);
-    fprintf('Total timing error at this alignment: %.4f seconds\n', min_error);
-
-    % Apply the Alignment (Offset 1)
-    % Recalculate the indices using the found offset
-    n_trials_table = height(trialParams); % e.g., 1618
-    valid_start_idx = best_offset + 1;    % Start at pulse 2
-    valid_end_idx = best_offset + n_trials_table; % Grab next 1618 pulses
-
-    % Extract the correct range of indices
-    final_pd_indices = final_on(valid_start_idx : valid_end_idx);
-    final_pd_offsets = final_off(valid_start_idx : valid_end_idx);
-
-    % Get the actual timestamps
-    final_pd_startTimes = nidq.imecTime(final_pd_indices);
-    final_pd_endTimes = nidq.imecTime(final_pd_offsets);
-    final_pd_durations = final_pd_endTimes - final_pd_startTimes;
-
-    %% Assign to Table
-
-    % --- APPLY SIMPLE ALIGNMENT ---
-    n_pulses = numel(final_pd_startTimes);
-    nTrialParams = height(trialParams);
-    if nTrialParams>n_pulses
-    fprintf('   -> Post cross-correlation alignment, truncating last %d rows.\n', nTrialParams - n_pulses);
-    trialParams = trialParams(1:n_pulses, :); % Truncate table
-    end
-
-     startTimes = final_pd_startTimes;
-     endTimes = final_pd_endTimes;
-
-     trialParams.startTime = startTimes(:);
-     trialParams.endTime = endTimes(:);
-     trialParams.ActualDuration = final_pd_durations(:);
-  
-    fprintf('Success: Assigned %d aligned photodiode trials to the table.\n', height(trialParams));
+% Assign to Table
+% 
+% % --- APPLY SIMPLE ALIGNMENT ---
+% n_pulses = numel(final_pd_startTimes);
+% nTrialParams = height(trialParams);
+% if nTrialParams>n_pulses
+%     fprintf('   -> Post cross-correlation alignment, truncating last %d rows.\n', nTrialParams - n_pulses);
+%     trialParams = trialParams(1:n_pulses, :); % Truncate table
+% end
+% 
+% startTimes = final_pd_startTimes;
+% endTimes = final_pd_endTimes;
+% 
+% trialParams.startTime = startTimes(:);
+% trialParams.endTime = endTimes(:);
+% trialParams.ActualDuration = final_pd_durations(:);
+% 
+% fprintf('Success: Assigned %d aligned photodiode trials to the table.\n', height(trialParams));
 
 
 %% 5. Plotting (Updated for Drift Visualization)
-    if doPlot
-        figure('Name', 'Alignment Verification', 'Color', 'w', 'Position', [100 100 1000 800]);
-        
-        % Data Prep: Extract time vectors from the ALIGNED table
-        t_pd = trialParams.startTime;
-        
-        % Handle Reference Time (Arduino vs Bonsai naming)
-        if ismember('ArduinoTime', trialParams.Properties.VariableNames)
-            t_ref_raw = trialParams.ArduinoTime / 1000; % Convert ms to s
-        elseif ismember('BonsaiTime', trialParams.Properties.VariableNames)
-            t_ref_raw = trialParams.BonsaiTime;
-        else
-            t_ref_raw = t_pd; % Fallback to prevent crash, though logic implies this exists
-        end
-        
-        % Zero-align both vectors to their own start to compare relative drift
-        t_pd_zero = t_pd - t_pd(1);
-        t_ref_zero = t_ref_raw - t_ref_raw(1);
-        
-        % 1. Raw Residuals (Drift)
-        % Calculate error in milliseconds
-        residuals = (t_pd_zero - t_ref_zero) * 1000; 
-        
-        subplot(3,1,1);
-        plot(residuals, 'o', 'MarkerFaceColor', 'b', 'MarkerEdgeColor', 'none', 'MarkerSize', 4);
-        ylabel('Error (ms)'); title('1. Raw Clock Drift (Cumulative)');
-        grid on; 
-        
-        % Add Trendline to show the rate
-        % Ensure column vectors for polyfit
-        x_axis = (1:length(residuals))';
-        p = polyfit(x_axis, residuals, 1);
-        y_fit = polyval(p, x_axis);
-        
-        hold on; 
-        plot(x_axis, y_fit, 'r-', 'LineWidth', 1);
-        legend('Raw Offset', sprintf('Drift: %.4f ms/trial', p(1)));
-        
-        % 2. Detrended Residuals (True Jitter)
-        % This removes the linear drift to show if the "lock" is tight
-        detrended_res = residuals - y_fit; % Or use detrend(residuals)
-        
-        subplot(3,1,2);
-        plot(detrended_res, 'o', 'MarkerFaceColor', 'g', 'MarkerEdgeColor', 'none', 'MarkerSize', 4);
-        ylabel('Jitter (ms)'); title('2. Detrended Jitter (Stability Check)');
-        grid on; yline(0, 'k--');
-        
-        % Check if Jitter is acceptable (usually < 1-2 frames)
-        std_jitter = std(detrended_res);
-        text(10, max(abs(detrended_res))*0.9, sprintf('Std Dev: %.2f ms', std_jitter), 'BackgroundColor', 'w');
-        
-        % 3. Rhythm Overlay (Visual Confirmation)
-        subplot(3,1,3);
-        hold on;
-        % Calculate intervals from the ALIGNED data
-        ref_ioi_aligned = diff(t_ref_raw);
-        pd_ioi_aligned = diff(t_pd);
-        
-        % Plot Table Intervals (Black)
-        plot(ref_ioi_aligned, 'k', 'LineWidth', 2, 'DisplayName', 'Bonsai Table');
-        % Plot PD Intervals (Red Dashed)
-        plot(pd_ioi_aligned, 'r--', 'LineWidth', 1.5, 'DisplayName', 'Photodiode');
-        
-        ylabel('Interval (s)'); xlabel('Trial Index');
-        title('3. Rhythm Overlay (Pattern Match)');
-        legend; grid on;
-        xlim([0 min(100, length(ref_ioi_aligned))]); 
+if doPlot
+    figure('Name', 'Alignment Verification', 'Color', 'w', 'Position', [100 100 1000 800]);
+
+    % Data Prep: Extract time vectors from the ALIGNED table
+    t_pd = trialParams.startTime;
+
+    % Handle Reference Time (Arduino vs Bonsai naming)
+    if ismember('ArduinoTime', trialParams.Properties.VariableNames)
+        t_ref_raw = trialParams.ArduinoTime / 1000; % Convert ms to s
+    elseif ismember('BonsaiTime', trialParams.Properties.VariableNames)
+        t_ref_raw = trialParams.BonsaiTime;
+    else
+        t_ref_raw = t_pd; % Fallback to prevent crash, though logic implies this exists
     end
+
+    % Zero-align both vectors to their own start to compare relative drift
+    t_pd_zero = t_pd - t_pd(1);
+    t_ref_zero = t_ref_raw - t_ref_raw(1);
+
+    % 1. Raw Residuals (Drift)
+    % Calculate error in milliseconds
+    residuals = (t_pd_zero - t_ref_zero) * 1000;
+
+    subplot(3,1,1);
+    plot(residuals, 'o', 'MarkerFaceColor', 'b', 'MarkerEdgeColor', 'none', 'MarkerSize', 4);
+    ylabel('Error (ms)'); title('1. Raw Clock Drift (Cumulative)');
+    grid on;
+
+    % Add Trendline to show the rate
+    % Ensure column vectors for polyfit
+    x_axis = (1:length(residuals))';
+    p = polyfit(x_axis, residuals, 1);
+    y_fit = polyval(p, x_axis);
+
+    hold on;
+    plot(x_axis, y_fit, 'r-', 'LineWidth', 1);
+    legend('Raw Offset', sprintf('Drift: %.4f ms/trial', p(1)));
+
+    % 2. Detrended Residuals (True Jitter)
+    % This removes the linear drift to show if the "lock" is tight
+    detrended_res = residuals - y_fit; % Or use detrend(residuals)
+
+    subplot(3,1,2);
+    plot(detrended_res, 'o', 'MarkerFaceColor', 'g', 'MarkerEdgeColor', 'none', 'MarkerSize', 4);
+    ylabel('Jitter (ms)'); title('2. Detrended Jitter (Stability Check)');
+    grid on; yline(0, 'k--');
+
+    % Check if Jitter is acceptable (usually < 1-2 frames)
+    std_jitter = std(detrended_res);
+    text(10, max(abs(detrended_res))*0.9, sprintf('Std Dev: %.2f ms', std_jitter), 'BackgroundColor', 'w');
+
+    % 3. Rhythm Overlay (Visual Confirmation)
+    subplot(3,1,3);
+    hold on;
+    % Calculate intervals from the ALIGNED data
+    ref_ioi_aligned = diff(t_ref_raw);
+    pd_ioi_aligned = diff(t_pd);
+
+    % Plot Table Intervals (Black)
+    plot(ref_ioi_aligned, 'k', 'LineWidth', 2, 'DisplayName', 'Bonsai Table');
+    % Plot PD Intervals (Red Dashed)
+    plot(pd_ioi_aligned, 'r--', 'LineWidth', 1.5, 'DisplayName', 'Photodiode');
+
+    ylabel('Interval (s)'); xlabel('Trial Index');
+    title('3. Rhythm Overlay (Pattern Match)');
+    legend; grid on;
+    xlim([0 min(100, length(ref_ioi_aligned))]);
 end
+
+
 end
