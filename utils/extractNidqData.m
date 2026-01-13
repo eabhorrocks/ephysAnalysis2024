@@ -1,4 +1,4 @@
-function nidq = extractNidqData(ExpInfo, igkey, nidqDir, nidq_channels, nidq_1hz_file, nidq_tprime_file, doPlot)
+function nidq = extractNidqData(ExpInfo, igkey, iAcq, nidqDir, nidq_channels, nidq_1hz_file, nidq_tprime_file, doPlot)
 %extractNidqData Extracts, thresholds, and analyzes NIDQ data for a specific stimulus.
 %
 %   This function reads a segment of a NIDQ binary file corresponding to a
@@ -31,7 +31,7 @@ end
 
 %% 2. Identify Data Segment
 % Find the index corresponding to the chosen stimulus key
-g_idx = find(ExpInfo.gKey == igkey);
+g_idx = find(ExpInfo.gKey == igkey & ExpInfo.AcqusitionIndex==iAcq);
 if isempty(g_idx)
     error('Specified igkey (%d) not found in ExpInfo.gKey.', igkey);
 end
