@@ -1,4 +1,4 @@
-function nidq = extractNidqData(ExpInfo, igkey, iAcq, nidqDir, nidq_channels, nidq_1hz_file, nidq_tprime_file, doPlot)
+function nidq = extractNidqData(ExpInfo, igkey, iAcq, nidqDir, nidq_channels, nidq_1hz_file, imec_1hz_file, doPlot)
 %extractNidqData Extracts, thresholds, and analyzes NIDQ data for a specific stimulus.
 %
 %   This function reads a segment of a NIDQ binary file corresponding to a
@@ -91,9 +91,9 @@ niSampRate = str2double(NidqMeta.niSampRate);
 nidq.time = t0 + (0:nSampActual-1) / niSampRate;
 
 %% 6. Map NIDQ Time to imec0 Time Base (Optional)
-if nargin >= 6 && ~isempty(nidq_1hz_file) && ~isempty(nidq_tprime_file)
+if nargin >= 6 && ~isempty(nidq_1hz_file) && ~isempty(imec_1hz_file)
     t_pulse_sig = readmatrix(nidq_1hz_file);
-    t_pulse_ref = readmatrix(nidq_tprime_file);
+    t_pulse_ref = readmatrix(imec_1hz_file);
     nidq.imecTime = interp1(t_pulse_sig, t_pulse_ref, nidq.time, 'linear', 'extrap');
 else
     nidq.imecTime = []; % Explicitly set to empty if not mapped
