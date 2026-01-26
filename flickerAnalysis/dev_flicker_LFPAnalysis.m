@@ -8,13 +8,14 @@ lfpDir = fullfile(BaseDir,Subject,'ephys',Session,'spike_sorting','probe0');
 
 
 %%
-lfpDir = fullfsile(BaseDir,Subject,'ephys',Session,'spike_sorting','probe0');
+lfpDir = fullfile(BaseDir,Subject,'ephys',Session,'spike_sorting','probe0');
 lfpMetaFile =  dir(fullfile(lfpDir,'*.meta'));
 lfpBinFile =  dir(fullfile(lfpDir,'*.bin'));
 
 lfpMeta = ReadMeta(fullfile(lfpFile.folder, lfpMetaFile.name));
 
-dataArrayCorrect = ReadBin(1, 2500*10, lfpMeta, lfpBinFile.name, lfpBinFile.folder);
+dataArrayCorrect = ReadSingleChannelBin_edd(1, lfpMeta.imSampRate*10, lfpMeta, lfpBinFile.name, lfpBinFile.folder);
+
 %%
 channel = 377,327,189, 214;
 

@@ -94,7 +94,12 @@ nidq.time = t0 + (0:nSampActual-1) / niSampRate;
 if nargin >= 6 && ~isempty(nidq_1hz_file) && ~isempty(imec_1hz_file)
     t_pulse_sig = readmatrix(nidq_1hz_file);
     t_pulse_ref = readmatrix(imec_1hz_file);
+    [t_pulse_ref, t_pulse_sig] = clean_pulse_vectors(t_pulse_ref, t_pulse_sig);
+    try
     nidq.imecTime = interp1(t_pulse_sig, t_pulse_ref, nidq.time, 'linear', 'extrap');
+    catch
+        debug=1;
+    end
 else
     nidq.imecTime = []; % Explicitly set to empty if not mapped
 end

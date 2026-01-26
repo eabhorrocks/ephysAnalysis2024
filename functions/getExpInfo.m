@@ -70,6 +70,8 @@ ExpInfo.smp_imap0 = tempStimInfo.('smp_imap0:')+1;
 ExpInfo.sec_imap0 = tempStimInfo.('sec_imap0:');
 ExpInfo.smp_nidq = tempStimInfo.('smp_nidq:')+1;
 ExpInfo.sec_nidq = tempStimInfo.('sec_nidq:');
+ExpInfo.smp_lfp = tempStimInfo.('smp_imlf0:')+1;
+ExpInfo.sec_lfp = tempStimInfo.('sec_imlf0:');
 ExpInfo.Stimulus = gkeyTable.Stimulus;
 ExpInfo.notes = gkeyTable.notes;
 
@@ -127,28 +129,28 @@ for istim = 1:numel(uniqueStimuli)
     catch
         debug=1;
     end
-    end
+    
     if nWheelFiles~=nGkeyIdx
         error(['Number of wheel files found doesnt match number of gkey entries for stimulus: ', stimulus])
     end
-    if nPhotodiodeFiles~=nGkeyIdx
-        error(['Number of photodiode files found doesnt match number of gkey entries for stimulus: ', stimulus])
-    end
-    if nVideoCSVFiles~=nGkeyIdx
-        error(['Number of video csv files found doesnt match number of gkey entries for stimulus: ', stimulus])
-    end
-% can be multiple videos for each stimulus, so skipping this for now
+    % if nPhotodiodeFiles~=nGkeyIdx
+    %     error(['Number of photodiode files found doesnt match number of gkey entries for stimulus: ', stimulus])
+    % end
+    % if nVideoCSVFiles~=nGkeyIdx
+    %     error(['Number of video csv files found doesnt match number of gkey entries for stimulus: ', stimulus])
+    % end
+   % can be multiple videos for each stimulus, so skipping this for now
     % if nVideoFiles~=nGkeyIdx
         % error(['Number of video files found doesnt match number of gkey entries for stimulus: ', stimulus])
     % end
-
+    end
     allGkeyIdx = find((strcmp(ExpInfo.Stimulus, stimulus)));
 
     for ifile = 1:nGkeyIdx
         thisTableIndex = allGkeyIdx(ifile);
         if ~ismember(stimulus,{'Spontaneous', 'Behaviour', 'SparseNoise','invalid'})
         ExpInfo.TrialParamsFiles(thisTableIndex) = {fullfile(trialParamsFiles(ifile).folder,trialParamsFiles(ifile).name)};
-        end
+        
         ExpInfo.WheelFiles(thisTableIndex) = {fullfile(wheelFiles(ifile).folder,wheelFiles(ifile).name)};
         try % need to add a check for valid stimuli that have photodiode
         ExpInfo.PhotodiodeFiles(thisTableIndex) = {fullfile(photodiodeFiles(ifile).folder,photodiodeFiles(ifile).name)};
@@ -161,6 +163,7 @@ for istim = 1:numel(uniqueStimuli)
         ExpInfo.ArduinoStimFiles(thisTableIndex) = {fullfile(arduinoStimFiles(ifile).folder,arduinoStimFiles(ifile).name)};
         catch
             warning('No Arduino stim files found for %s', stimulus)
+        end
         end
     end
 

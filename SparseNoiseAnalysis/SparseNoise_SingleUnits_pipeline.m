@@ -1,13 +1,13 @@
 %% Sparse noise analysis pipeline
 
-BaseDir = 'Z:\ibn-vision\DATA\SUBJECTS';
-Subject = 'M25104';
-Session = '20250902';
-AcquisitionsID = '0';
+BaseDir = 'Y:\ibn-vision\DATA\SUBJECTS';
+Subject = 'M26001';
+Session = '20260122';
+AcquisitionsID = '5';
 SorterName = 'kilosort4';
 
-% grid_size = [8, 16]; % 15 deg, normal cortex
-grid_size = [12, 24]; % 10 deg
+ grid_size = [8, 16]; % 15 deg, normal cortex
+% grid_size = [12, 24]; % 10 deg
 % grid_size = [16, 32]; % 7.5deg, normal lgn
 
 %% load ephys and nidaq data info
@@ -47,8 +47,6 @@ fileID=fopen(fullfile(files(1).folder,files(1).name)); % load the bin file
 thisBinFile=fread(fileID);
 fclose(fileID);
 
-
-
 % Translate stimulus into -1:1 scale
 stim_matrix = zeros(1,length(thisBinFile));
 stim_matrix(thisBinFile==0)=-1;
@@ -84,9 +82,8 @@ thisTime = NidqTime(idx);
 
 flipTime =0.1; % NB: add BUT NOT MORE THAN flipTime*2.5 or something
 
-
 % threshold PD signal and get up and down times
-% convert to a digital signal
+% %convert to a digital signal
 PD_binary = thisPD;
 threshold = 2000;
 PD_binary(PD_binary<threshold)=0;
@@ -97,18 +94,17 @@ idx = find(diff(PD_binary)==1); % indexes of where PD goes up
 idx = idx+1;
 diffTimes = thisTime(idx); % time stamps of where PD goes up
 diffDiffTimes = diff(diffTimes); % time between PD going up.
-idx2 = find(diffDiffTimes>flipTime); % For new trials its ~2, i.e. >1.5s
+idx2 = find(diffDiffTimes>flipTime); % 
 idx2=idx2+1;
 upSwings = idx(idx2); % convert back to original PD index
 upSwings = [idx(1), upSwings]; % add the first trial
-
 
 % find down swings
 idx = find(diff(PD_binary)==-1); % indexes of where PD goes up
 idx = idx+1;
 diffTimes = thisTime(idx); % time stamps of where PD goes up
 diffDiffTimes = diff(diffTimes); % time between PD going up.
-idx2 = find(diffDiffTimes>flipTime); % For new trials its ~2, i.e. >1.5s
+idx2 = find(diffDiffTimes>flipTime); %
 idx2=idx2+1;
 downSwings = idx(idx2); % convert back to original PD index
 downSwings = [idx(1), downSwings];
@@ -217,7 +213,7 @@ depth_disc = discretize(allocs(:,2),edges)';
 iplot=0;
 for idepth = nDepthSplits:-1:1
 
-    for ishank=0:3
+    for ishank=1:4
 
         iplot=iplot+1;
         try
@@ -273,7 +269,7 @@ idx = find([filtUnits.firing_rate]>3);
 doplot=true;
 if doplot
     % idx=1:numel(units);
-    idx = find([units.firing_rate]>1);% & [units.shank]==3);
+    idx = find([units.firing_rate]>2);% & [units.shank]==3);
 
     tic
     for iunit = 1:numel(idx)
@@ -350,10 +346,10 @@ for iunit = 1:length(units)
 end
 toc
 
-for iunit = 1:numel(idx)
-    SUA_data = squeeze(resps(idx(iunit),:,:))'; % returns 1 x N time bins x nFrames;
-
-    sn_options.figName =  ['sh: ', num2str(round(locs(idx(iunit),1)./250))];
-    tempRF = sparseNoiseAnalysis(stim_matrix,SUA_data,[],[],sn_options);
-    pause
-end
+% for iunit = 1:numel(idx)
+%     SUA_data = squeeze(resps(idx(iunit),:,:))'; % returns 1 x N time bins x nFrames;
+% 
+%     sn_options.figName =  ['sh: ', num2str(round(locs(idx(iunit),1)./250))];
+%     tempRF = sparseNoiseAnalysis(stim_matrix,SUA_data,[],[],sn_options);
+%     pause
+% end

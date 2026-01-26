@@ -11,6 +11,7 @@ y_axis_height = [0 1]; % The vertical range the shaded regions will cover
 figure;
 hold on;
 
+
 % --- Plot the first set of intervals
 % We create a dummy handle 'p1' for the legend.
 % It will be overwritten in the loop, and the last patch will be used for the legend entry.
@@ -59,3 +60,5 @@ legend([p1, p2], {'Interval Set 1', 'Interval Set 2'}, 'Location', 'northwest');
 
 % Remove the y-axis ticks for a cleaner look
 set(gca, 'YTick', []);
+hold on
+plot(wheelTime, wheelSpeed, 'k')

@@ -1,0 +1,412 @@
+%% Sparse noise analysis pipeline
+
+
+for iacq = 0:5
+
+BaseDir = 'Y:\ibn-vision\DATA\SUBJECTS';
+Subject = 'M26001';
+Session = '20260122';
+AcquisitionsID = num2str(iacq);
+SorterName = 'kilosort4';
+
+grid_size = [8, 16]; % 15 deg, normal cortex
+% grid_size = [12, 24]; % 10 deg
+% grid_size = [16, 32]; % 7.5deg, normal lgn
+
+%% load ephys and nidaq data info
+
+
+[ExpInfo, ephysDir, nidqDir, bonsaiDir] = getExpInfo(BaseDir, Subject, Session,AcquisitionsID);
+
+%% load LFP
+
+lfpDir = fullfile(ephysDir,'lfp');
+lfpMetaFile =  dir(fullfile(lfpDir,'*.meta'));
+lfpBinFile =  dir(fullfile(lfpDir,'*.bin'));
+
+lfpMeta = ReadMeta(fullfile(lfpMetaFile.folder, lfpMetaFile.name));
+
+channels = 1:384;
+targetFreq = 60;
+timeRangeSamples = [];
+
+[lfp_data, lfp_time] = ReadBinFlexible(channels, lfpMeta, lfpBinFile.name, lfpDir, timeRangeSamples, targetFreq);
+
+%lfp_time = lfp_time + ExpInfo-offset
+
+lfp = struct;
+% Get the coordinates of each channel
+[x_coords, y_coords, shanks] = GetChannelLocations(lfpMeta);
+
+for ichannel = 1:numel(channels)
+    lfp(ichannel).data = lfp_data(ichannel,:);
+    lfp(ichannel).channel = channels(ichannel);
+    lfp(ichannel).x = x_coords(channels(ichannel));
+    lfp(ichannel).y = y_coords(channels(ichannel));
+    lfp(ichannel).shanks = shanks(channels(ichannel));
+end
+
+
+%% generate stimulus matrix
+
+% find sparse noise bin file and minimally process
+binFileDir = fullfile(BaseDir,Subject,'ephys',Session,['Processed_',AcquisitionsID], 'bonsai_files');
+
+files = dir(fullfile(binFileDir, '*SparseNoise*.bin'));
+
+% Display found files and handle different cases
+numFiles = length(files);
+
+if numFiles == 0
+    disp('No matching files found.');
+elseif numFiles == 1
+    fprintf('Found one file: %s\n', fullfile(files(1).folder, files(1).name));
+else
+    warning('Multiple matching files found:');
+    for k = 1:numFiles
+        fprintf('%s\n', fullfile(files(k).folder, files(k).name));
+    end
+    warning('Using first file.')
+end
+
+fileID=fopen(fullfile(files(1).folder,files(1).name)); % load the bin file
+
+thisBinFile=fread(fileID);
+fclose(fileID);
+
+
+
+% Translate stimulus into -1:1 scale
+stim_matrix = zeros(1,length(thisBinFile));
+stim_matrix(thisBinFile==0)=-1;
+stim_matrix(thisBinFile==255)=1;
+stim_matrix(thisBinFile==128)=0;
+% Make a NxM grid from the stimulus log
+stim_matrix = reshape(stim_matrix, [grid_size(1),grid_size(2), length(thisBinFile)/grid_size(1)/grid_size(2)]);
+stim_matrix = stim_matrix(:,:,1:end-1); % The last upswing should be ignored
+
+
+%% get photodiode signal for frame times
+nidqMetaFile =  dir(fullfile(nidqDir,'*.meta'));
+nidqBinFile =  dir(fullfile(nidqDir,'*.bin'));
+
+NidqMeta = ReadMeta(fullfile(nidqMetaFile.folder, nidqMetaFile.name));
+NidqBin = ReadBin(1, inf, NidqMeta, nidqBinFile.name,nidqBinFile.folder);
+
+PD = NidqBin(2,:);
+
+niSampRate = str2double(NidqMeta.niSampRate);
+NidqTime = (1:size(NidqBin,2))./niSampRate;
+
+% take photodiode signal relevant to sparse noise (exclude other stimuli)
+stimIdx = find(strcmp(ExpInfo.Stimulus,'SparseNoise'));
+if stimIdx<height(ExpInfo)
+    idx = [ExpInfo.smp_nidq(stimIdx):ExpInfo.smp_nidq(stimIdx+1)];
+else
+    idx = [ExpInfo.smp_nidq(stimIdx):numel(NidqTime)];
+end
+
+thisPD = PD(idx);
+thisTime = NidqTime(idx);
+
+flipTime =0.1; % NB: add BUT NOT MORE THAN flipTime*2.5 or something
+
+
+% threshold PD signal and get up and down times
+% convert to a digital signal
+PD_binary = thisPD;
+threshold = 2000;
+PD_binary(PD_binary<threshold)=0;
+PD_binary(PD_binary>=threshold)=1;
+
+% find up swings
+idx = find(diff(PD_binary)==1); % indexes of where PD goes up
+idx = idx+1;
+diffTimes = thisTime(idx); % time stamps of where PD goes up
+diffDiffTimes = diff(diffTimes); % time between PD going up.
+idx2 = find(diffDiffTimes>flipTime); % For new trials its ~2, i.e. >1.5s
+idx2=idx2+1;
+upSwings = idx(idx2); % convert back to original PD index
+upSwings = [idx(1), upSwings]; % add the first trial
+
+
+% find down swings
+idx = find(diff(PD_binary)==-1); % indexes of where PD goes up
+idx = idx+1;
+diffTimes = thisTime(idx); % time stamps of where PD goes up
+diffDiffTimes = diff(diffTimes); % time between PD going up.
+idx2 = find(diffDiffTimes>flipTime); % For new trials its ~2, i.e. >1.5s
+idx2=idx2+1;
+downSwings = idx(idx2); % convert back to original PD index
+downSwings = [idx(1), downSwings];
+
+stim_times = sort(thisTime([upSwings, downSwings]));
+
+
+%% Define time windows and get trials
+
+window_sec = [-0.1, 0.3];     % Epoch window
+response_window = [0, 0.3];   % Measurement window
+
+% Get Time Vector & Sampling Rate (Assumes all channels share lfp_time)
+time_vec = lfp_time(:);
+dt = median(diff(time_vec));
+fs = 1/dt;
+fprintf('Detected Sampling Rate: %.2f Hz\n', fs);
+
+% Convert Time Windows to Samples
+samps_pre  = round(abs(window_sec(1)) * fs);
+samps_post = round(window_sec(2) * fs);
+epoch_len  = samps_pre + samps_post + 1;
+
+% Indices for measurement (relative to epoch start)
+resp_start_idx = samps_pre + round(response_window(1) * fs);
+resp_end_idx   = samps_pre + round(response_window(2) * fs);
+
+% Sanity check measurement window
+if resp_start_idx < 1, resp_start_idx = 1; end
+if resp_end_idx > epoch_len, resp_end_idx = epoch_len; end
+
+% Find closest LFP sample index for every stimulus time
+stim_indices = interp1(time_vec, 1:length(time_vec), stim_times, 'nearest');
+
+% Define valid range (so epochs don't go out of bounds)
+% Note: We check against the length of the time vector, assuming data matches
+max_ind = length(time_vec);
+valid_mask = ~isnan(stim_indices) & ...
+             stim_indices > samps_pre & ...
+             stim_indices < (max_ind - samps_post);
+
+while numel(stim_indices)>size(stim_matrix,3) % occasionally get extra stim indices at the end 
+    stim_indices(end)=[];
+    valid_mask(end)=[];
+
+end
+
+valid_stim_indices = stim_indices(valid_mask);
+stim_matrix_clean  = stim_matrix(:, :, valid_mask);
+contrast_matrix    = abs(stim_matrix_clean); % 1=Flash, 0=Gray
+
+[nGridX, nGridY, ~] = size(contrast_matrix);
+
+% Cell array to store the sample indices for every grid position
+% Format: pixel_indices{x,y} = [vector of sample indices]
+pixel_epoch_indices = cell(nGridX, nGridY);
+
+disp('Pre-calculating stimulus indices...');
+for x = 1:nGridX
+    for y = 1:nGridY
+        % Find trials where this pixel was active
+        trials = find(contrast_matrix(x, y, :) == 1);
+        
+        if ~isempty(trials)
+            % Get center sample points
+            center_idxs = valid_stim_indices(trials);
+            
+            % Create the "Gathering Matrix" for vectorized indexing
+            % Result: A long vector of all indices needed for this pixel
+            % We store this so we can just call data(idx) later
+            idx_mat = center_idxs(:)' + (-samps_pre : samps_post)';
+            pixel_epoch_indices{x,y} = idx_mat;
+        end
+    end
+end
+
+%% Fit RFs to every channel
+
+scal_f = 10;
+sigma = 3;
+
+nChannels = length(lfp);
+fprintf('Processing %d channels...\n', nChannels);
+
+% Use a waitbar for progress tracking
+h = waitbar(0, 'Mapping Receptive Fields...');
+
+for iCh = 1:nChannels
+    
+    % 1. Extract Data
+    raw_trace = lfp(iCh).data(:);
+    
+    % Initialize map for this channel
+    current_rf_map = zeros(nGridX, nGridY);
+    
+    % 2. Loop through grid positions
+    for x = 1:nGridX
+        for y = 1:nGridY
+            
+            % Retrieve pre-calculated indices
+            idx_mat = pixel_epoch_indices{x,y};
+            
+            if ~isempty(idx_mat)
+                % Extract all epochs at once
+                epochs = raw_trace(idx_mat);
+                
+                % Baseline Correction
+                baselines = mean(epochs(1:samps_pre, :), 1);
+                epochs_bc = epochs - baselines;
+                
+                % Compute STA
+                sta_trace = mean(epochs_bc, 2);
+                
+                % Measure Magnitude (Minimum / Peak Negativity)
+                current_rf_map(x,y) = min(sta_trace(resp_start_idx:resp_end_idx));
+            end
+        end
+    end
+    
+    % 3. Store result in the struct
+    lfp(iCh).rf_map_contrast = current_rf_map;
+    rf = imresize(lfp(iCh).rf_map_contrast,scal_f);
+    rf = imgaussfilt(rf,sigma);
+    rf = rf./abs(min(rf(:)));
+    lfp(iCh).rf_map_contrast_scaleAndSmoothed = rf;
+    
+    % Update progress
+    if mod(iCh, 10) == 0
+        waitbar(iCh/nChannels, h, sprintf('Channel %d / %d', iCh, nChannels));
+    end
+end
+close(h);
+disp('Done.');
+
+%% save data
+
+fname = [Subject, '_', Session, '_', AcquisitionsID, '_LFP_RFs.mat'];
+try
+    save(fname, 'lfp');
+catch
+    save(fname, 'lfp', '-v7.3')
+end
+
+
+end
+
+%% plot lfp for all channels, sorted by depth
+% 
+% [depth, depth_idx] = sort([lfp.y]);
+% depth_idx = fliplr(depth_idx);
+% scal_f=10;
+% sigma=3;
+% %
+% doplot=true;
+% if doplot
+%     % idx=1:numel(units);
+%     tic
+%     for ichannel = 1:384
+%         % For every new set of panels, open a new figure (except for the first set)
+%         if mod(ichannel-1, 35) == 0
+%             figure;         % Open a new figure
+%         end
+% 
+%         % Create subplot in a 4x5 grid
+%         subplot(7, 5, mod(ichannel-1, 35) + 1)
+% 
+%         % get the receptive field
+%         this_chan = depth_idx(ichannel);
+%         rf = imresize(lfp(this_chan).rf_map_contrast,scal_f);
+%         rf = imgaussfilt(rf,sigma);
+%         rf = rf./abs(max(rf(:)));
+% 
+%         % plot the receptive field
+%         imagesc(flipud(rf))
+%         colormap(gray)
+%         xlabel('Azimuth')
+%         ylabel('Elevation')
+%         xticks(linspace(1, size(rf, 2), 13))
+%         xticklabels(-120:20:120)
+%         yticks(linspace(1, size(rf, 1), 7))
+%         yticklabels(-60:20:60)
+%         title(sprintf('Depth %i', lfp(this_chan).y))
+%         colorbar
+%         set(gca, "TickDir", "out", 'box', 'off', 'Color', 'none', 'FontSize', 8)
+%         % axis equal,
+%         axis xy
+%         % colormap(redblue), clim([-abv abv])
+%     end
+% 
+%     toc
+% end
+% 
+
+%% plot azimuth as a function of channel depth
+% 
+% % Setup Parameters
+% scal_f = 10;      % Resize factor
+% sigma  = 3;       % Smoothing sigma
+% normalize = true; % Normalize to peak sink
+% 
+% % Get output dimensions for resizing
+% dummy_map = imresize(lfp(1).rf_map_contrast, scal_f);
+% [~, new_w] = size(dummy_map);
+% 
+% % Extract Depths and Sort
+% % We assume lfp(i).y contains the depth in microns
+% all_depths = [lfp.y]; 
+% [sorted_depths, sort_idx] = sort(all_depths, 'ascend'); 
+% 
+% % Pre-allocate Matrix based on Sorted Order
+% nChannels = length(lfp);
+% azimuth_depth_sorted = zeros(nChannels, new_w);
+% 
+% % Process Channels in Sorted Order
+% fprintf('Smoothing and sorting %d channels...\n', nChannels);
+% 
+% for k = 1:nChannels
+%     % Get the original channel index corresponding to this depth rank
+%     orig_idx = sort_idx(k);
+% 
+%     % Get Raw RF
+%     raw_rf = lfp(orig_idx).rf_map_contrast;
+% 
+%     % Resize & Smooth
+%     rf_resized = imresize(raw_rf, scal_f);
+%     rf_smooth = imgaussfilt(rf_resized, sigma);
+% 
+%     % Normalize (to min/sink)
+%     if normalize
+%         peak_val = min(rf_smooth(:));
+%         if peak_val ~= 0
+%             rf_smooth = rf_smooth ./ abs(peak_val);
+%         end
+%     end
+% 
+%     % Collapse Elevation to get Azimuth Profile
+%     azimuth_profile = min(rf_smooth, [], 1); 
+% 
+%     % Store in the k-th row (which corresponds to sorted_depths(k))
+%     azimuth_depth_sorted(k, :) = azimuth_profile;
+% end
+% 
+% % Visualization with Physical Axes
+% figure('Color', 'w');
+% 
+% % Define Real-World Bounds for Plotting
+% x_lims = [-120, 120]; % Azimuth degrees
+% y_lims = [min(sorted_depths), max(sorted_depths)]; % Depth microns
+% 
+% % Plot using explicit axes
+% % Multiply by -1 so "Sink" is positive/hot
+% imagesc(x_lims, y_lims, azimuth_depth_sorted * -1); 
+% 
+% set(gca, 'YDir', 'normal'); % Put 0 (Tip) at the bottom
+% colormap(gray);
+% c = colorbar;
+% c.Label.String = 'Normalized Response (Sink Strength)';
+% 
+% xlabel('Azimuth (Degrees)');
+% ylabel('Probe Depth (\mu m)');
+% title('Retinotopy: Azimuth vs. Physical Depth');
+% 
+% % Optional: Track the Peak with Depth
+% hold on;
+% [~, max_col_idx] = max(azimuth_depth_sorted * -1, [], 2);
+% 
+% % Convert Column Index to Degrees for plotting
+% deg_per_pixel = (x_lims(2) - x_lims(1)) / (new_w - 1);
+% peak_azimuths = x_lims(1) + (max_col_idx - 1) * deg_per_pixel;
+% 
+% % Plot Trend Line
+% % plot(peak_azimuths, sorted_depths, 'g', 'LineWidth', 1.5);
+% legend('Peak Azimuth', 'Location', 'Best');
+% hold off;
