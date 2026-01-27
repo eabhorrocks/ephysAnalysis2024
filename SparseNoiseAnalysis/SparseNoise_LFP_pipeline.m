@@ -27,19 +27,27 @@ lfpBinFile =  dir(fullfile(lfpDir,'*.bin'));
 lfpMeta = ReadMeta(fullfile(lfpMetaFile.folder, lfpMetaFile.name));
 
 channels = 1:384;
-targetFreq = 60;
+targetFreq = [];
 timeRangeSamples = [];
 
-[lfp_data, lfp_time] = ReadBinFlexible(channels, lfpMeta, lfpBinFile.name, lfpDir, timeRangeSamples, targetFreq);
-
-%lfp_time = lfp_time + ExpInfo-offset
+% less efficient, but conserves RAM
+% [lfp_data, lfp_time] = ReadBinFlexible(channels, lfpMeta, lfpBinFile.name, lfpDir, timeRangeSamples, targetFreq);
+tic
+[lfp_data_full, lfp_time_full] = ReadBinOptimized(channels, lfpMeta, lfpBinFile.name, lfpDir, [], []);
+toc
+tic
+[lfp_data, lfp_time] = ReadBinOptimized(channels, lfpMeta, lfpBinFile.name, lfpDir, [], 60);
+toc
+% for acquisitions with multiple G recordings, need to add approp. offset
+% lfp_time = lfp_time + ExpInfo-offset
 
 lfp = struct;
 % Get the coordinates of each channel
 [x_coords, y_coords, shanks] = GetChannelLocations(lfpMeta);
 
 for ichannel = 1:numel(channels)
-    lfp(ichannel).data = lfp_data(ichannel,:);
+    lfp(ichannel).data = double(lfp_data(ichannel,:));
+    lfp(ichannel).data_raw = lfp_data_full(ichannel,:); % convert to double during latency calc
     lfp(ichannel).channel = channels(ichannel);
     lfp(ichannel).x = x_coords(channels(ichannel));
     lfp(ichannel).y = y_coords(channels(ichannel));
@@ -143,8 +151,8 @@ downSwings = [idx(1), downSwings];
 stim_times = sort(thisTime([upSwings, downSwings]));
 
 
-%% Define time windows and get trials
 
+%% Define time windows and get trials
 window_sec = [-0.1, 0.3];     % Epoch window
 response_window = [0, 0.3];   % Measurement window
 
@@ -171,108 +179,234 @@ if resp_end_idx > epoch_len, resp_end_idx = epoch_len; end
 stim_indices = interp1(time_vec, 1:length(time_vec), stim_times, 'nearest');
 
 % Define valid range (so epochs don't go out of bounds)
-% Note: We check against the length of the time vector, assuming data matches
 max_ind = length(time_vec);
 valid_mask = ~isnan(stim_indices) & ...
              stim_indices > samps_pre & ...
              stim_indices < (max_ind - samps_post);
 
-while numel(stim_indices)>size(stim_matrix,3) % occasionally get extra stim indices at the end 
+while numel(stim_indices) > size(stim_matrix,3) 
     stim_indices(end)=[];
     valid_mask(end)=[];
-
 end
-
 valid_stim_indices = stim_indices(valid_mask);
 stim_matrix_clean  = stim_matrix(:, :, valid_mask);
 contrast_matrix    = abs(stim_matrix_clean); % 1=Flash, 0=Gray
-
 [nGridX, nGridY, ~] = size(contrast_matrix);
 
 % Cell array to store the sample indices for every grid position
-% Format: pixel_indices{x,y} = [vector of sample indices]
 pixel_epoch_indices = cell(nGridX, nGridY);
-
-disp('Pre-calculating stimulus indices...');
+disp('Pre-calculating stimulus indices (Low Res)...');
 for x = 1:nGridX
     for y = 1:nGridY
-        % Find trials where this pixel was active
         trials = find(contrast_matrix(x, y, :) == 1);
-        
         if ~isempty(trials)
-            % Get center sample points
             center_idxs = valid_stim_indices(trials);
-            
-            % Create the "Gathering Matrix" for vectorized indexing
-            % Result: A long vector of all indices needed for this pixel
-            % We store this so we can just call data(idx) later
             idx_mat = center_idxs(:)' + (-samps_pre : samps_post)';
             pixel_epoch_indices{x,y} = idx_mat;
         end
     end
 end
 
-%% Fit RFs to every channel
-
+%% Fit RFs to every channel (Low Res Pass)
 scal_f = 10;
-sigma = 3;
-
+sigma  = 3;
 nChannels = length(lfp);
-fprintf('Processing %d channels...\n', nChannels);
-
-% Use a waitbar for progress tracking
+fprintf('Processing %d channels (Low Res fit)...\n', nChannels);
 h = waitbar(0, 'Mapping Receptive Fields...');
 
 for iCh = 1:nChannels
-    
-    % 1. Extract Data
     raw_trace = lfp(iCh).data(:);
     
-    % Initialize map for this channel
     current_rf_map = zeros(nGridX, nGridY);
     
-    % 2. Loop through grid positions
     for x = 1:nGridX
         for y = 1:nGridY
-            
-            % Retrieve pre-calculated indices
             idx_mat = pixel_epoch_indices{x,y};
-            
             if ~isempty(idx_mat)
-                % Extract all epochs at once
-                epochs = raw_trace(idx_mat);
-                
-                % Baseline Correction
+                epochs    = raw_trace(idx_mat);
                 baselines = mean(epochs(1:samps_pre, :), 1);
-                epochs_bc = epochs - baselines;
+                sta_trace = mean(epochs - baselines, 2);
                 
-                % Compute STA
-                sta_trace = mean(epochs_bc, 2);
-                
-                % Measure Magnitude (Minimum / Peak Negativity)
-                current_rf_map(x,y) = min(sta_trace(resp_start_idx:resp_end_idx));
+                % Store Magnitude
+                window_trace = sta_trace(resp_start_idx:resp_end_idx);
+                current_rf_map(x,y) = min(window_trace);
             end
         end
     end
     
-    % 3. Store result in the struct
+    % Store Maps
     lfp(iCh).rf_map_contrast = current_rf_map;
-    rf = imresize(lfp(iCh).rf_map_contrast,scal_f);
-    rf = imgaussfilt(rf,sigma);
-    rf = rf./abs(min(rf(:)));
+    
+    % Create Smoothed Magnitude Map
+    rf = imresize(lfp(iCh).rf_map_contrast, scal_f);
+    rf = imgaussfilt(rf, sigma);
+    if min(rf(:)) ~= 0
+        rf = rf ./ abs(min(rf(:)));
+    end
     lfp(iCh).rf_map_contrast_scaleAndSmoothed = rf;
     
-    % Update progress
-    if mod(iCh, 10) == 0
-        waitbar(iCh/nChannels, h, sprintf('Channel %d / %d', iCh, nChannels));
-    end
+    if mod(iCh, 10) == 0, waitbar(iCh/nChannels, h); end
 end
 close(h);
-disp('Done.');
+disp('Low Res Mapping Done.');
+
+%% Test significance vs circ-shifted LFP
+nShuffles = 500;
+min_shift_sec = 10;
+alpha = 0.05;
+
+nSamples = length(lfp(1).data); 
+min_shift_samp = round(min_shift_sec * fs);
+
+pixel_counts = zeros(nChannels, nGridX, nGridY); 
+null_max_stats = zeros(nChannels, nShuffles);
+
+real_peaks = zeros(nChannels, 1);
+for i = 1:nChannels
+    real_peaks(i) = min(lfp(i).rf_map_contrast(:));
+end
+
+fprintf('Running %d permutations...\n', nShuffles);
+h = waitbar(0, 'Shuffling...');
+
+for iShuff = 1:nShuffles
+    shift_amt = randi([min_shift_samp, nSamples - min_shift_samp]);
+    
+    for iCh = 1:nChannels
+        raw_trace = lfp(iCh).data(:);
+        shuffled_map = zeros(nGridX, nGridY);
+        
+        for x = 1:nGridX
+            for y = 1:nGridY
+                idx_mat = pixel_epoch_indices{x,y};
+                if ~isempty(idx_mat)
+                    shifted_idx = mod(idx_mat + shift_amt - 1, nSamples) + 1;
+                    epochs = raw_trace(shifted_idx);
+                    baselines = mean(epochs(1:samps_pre, :), 1);
+                    sta_trace = mean(epochs - baselines, 2);
+                    shuffled_map(x,y) = min(sta_trace(resp_start_idx:resp_end_idx));
+                end
+            end
+        end
+        
+        real_map = lfp(iCh).rf_map_contrast;
+        pixel_counts(iCh, :, :) = squeeze(pixel_counts(iCh, :, :)) + (shuffled_map <= real_map);
+        null_max_stats(iCh, iShuff) = min(shuffled_map(:));
+    end
+    waitbar(iShuff/nShuffles, h);
+end
+close(h);
+
+for iCh = 1:nChannels
+    lfp(iCh).rf_pvalues = squeeze(pixel_counts(iCh, :, :)) / nShuffles;
+    lfp(iCh).rf_mask    = lfp(iCh).rf_pvalues < alpha;
+    
+    null_peaks = null_max_stats(iCh, :);
+    n_beating_nulls = sum(null_peaks <= real_peaks(iCh));
+    global_p = n_beating_nulls / nShuffles;
+    
+    lfp(iCh).is_visual_channel = global_p < alpha;
+    lfp(iCh).global_p_value    = global_p;
+end
+disp('Significance testing Done.');
+
+%% Step 4: High-Resolution Latency Extraction (NEW)
+% ---------------------------------------------------------------
+% Uses lfp_time_full and lfp(iCh).data_raw to compute precise latency
+% Only runs on Significant Channels to save time.
+
+if exist('lfp_time_full', 'var')
+    % 1. Setup High-Res Parameters
+    dt_raw = median(diff(lfp_time_full));
+    fs_raw = 1/dt_raw;
+    fprintf('Detected High-Res Rate: %.2f Hz\n', fs_raw);
+    
+    samps_pre_raw  = round(abs(window_sec(1)) * fs_raw);
+    samps_post_raw = round(window_sec(2) * fs_raw);
+    resp_start_raw = samps_pre_raw + round(response_window(1) * fs_raw);
+    resp_end_raw   = samps_pre_raw + round(response_window(2) * fs_raw);
+    
+    % 2. Pre-calculate High-Res Indices
+    stim_indices_raw = interp1(lfp_time_full, 1:length(lfp_time_full), stim_times, 'nearest');
+    max_ind_raw = length(lfp_time_full);
+    valid_mask_raw = ~isnan(stim_indices_raw) & ...
+                     stim_indices_raw > samps_pre_raw & ...
+                     stim_indices_raw < (max_ind_raw - samps_post_raw);
+    
+    % Ensure lengths match (same logic as low-res safety check)
+    while numel(stim_indices_raw) > size(stim_matrix,3)
+        stim_indices_raw(end)=[];
+        valid_mask_raw(end)=[];
+    end
+                     
+    valid_stim_indices_raw = stim_indices_raw(valid_mask_raw);
+    contrast_matrix_raw = abs(stim_matrix(:, :, valid_mask_raw));
+    
+    pixel_indices_raw = cell(nGridX, nGridY);
+    fprintf('Pre-calculating High-Res indices...\n');
+    for x = 1:nGridX
+        for y = 1:nGridY
+            trials = find(contrast_matrix_raw(x, y, :) == 1);
+            if ~isempty(trials)
+                center_idxs = valid_stim_indices_raw(trials);
+                idx_mat = center_idxs(:)' + (-samps_pre_raw : samps_post_raw)';
+                pixel_indices_raw{x,y} = idx_mat;
+            end
+        end
+    end
+    
+    % 3. Calculate Latency
+    fprintf('Extracting precise latency for significant channels...\n');
+    h = waitbar(0, 'Extracting Latency...');
+    
+    for iCh = 1:nChannels
+        % Skip computation if not significant
+        if lfp(iCh).is_visual_channel == 0
+            lfp(iCh).peak_latency = NaN;
+            continue;
+        end
+        
+        raw_trace = double(lfp(iCh).data_raw(:));
+        %raw_trace = lfp(iCh).data_raw(:);
+        current_latency_map = nan(nGridX, nGridY);
+        
+        for x = 1:nGridX
+            for y = 1:nGridY
+                idx_mat = pixel_indices_raw{x,y};
+                if ~isempty(idx_mat)
+                    epochs = raw_trace(idx_mat);
+                    baselines = mean(epochs(1:samps_pre_raw, :), 1);
+                    sta_trace = mean(epochs - baselines, 2);
+                    
+                    % Measure Latency in High Res Window
+                    window_trace = sta_trace(resp_start_raw:resp_end_raw);
+                    [~, min_idx] = min(window_trace);
+                    
+                    % Convert to seconds
+                    latency_samps = (resp_start_raw - samps_pre_raw - 1) + min_idx;
+                    current_latency_map(x,y) = latency_samps / fs_raw;
+                end
+            end
+        end
+        
+        lfp(iCh).rf_latency_map = current_latency_map;
+        
+        % Extract Peak Latency from the "hottest" pixel in the (Low Res) Magnitude map
+        [~, best_flat_idx] = min(lfp(iCh).rf_map_contrast(:));
+        lfp(iCh).peak_latency = current_latency_map(best_flat_idx);
+        
+        if mod(iCh, 10) == 0, waitbar(iCh/nChannels, h); end
+    end
+    close(h);
+    disp('High-Res Latency Extraction Done.');
+else
+    warning('lfp_time_full not found. Skipping high-res latency.');
+end
+
 
 %% save data
 
-fname = [Subject, '_', Session, '_', AcquisitionsID, '_LFP_RFs.mat'];
+fname = [Subject, '_', Session, '_', AcquisitionsID, '_LFP_RFs_wLatency.mat'];
 try
     save(fname, 'lfp');
 catch
@@ -330,7 +464,6 @@ end
 % 
 
 %% plot azimuth as a function of channel depth
-% 
 % % Setup Parameters
 % scal_f = 10;      % Resize factor
 % sigma  = 3;       % Smoothing sigma
@@ -341,13 +474,13 @@ end
 % [~, new_w] = size(dummy_map);
 % 
 % % Extract Depths and Sort
-% % We assume lfp(i).y contains the depth in microns
 % all_depths = [lfp.y]; 
 % [sorted_depths, sort_idx] = sort(all_depths, 'ascend'); 
 % 
-% % Pre-allocate Matrix based on Sorted Order
+% % Pre-allocate Matrices
 % nChannels = length(lfp);
 % azimuth_depth_sorted = zeros(nChannels, new_w);
+% significance_mask_sorted = zeros(nChannels, 1); % To track which rows are sig
 % 
 % % Process Channels in Sorted Order
 % fprintf('Smoothing and sorting %d channels...\n', nChannels);
@@ -374,39 +507,63 @@ end
 %     % Collapse Elevation to get Azimuth Profile
 %     azimuth_profile = min(rf_smooth, [], 1); 
 % 
-%     % Store in the k-th row (which corresponds to sorted_depths(k))
+%     % Store data
 %     azimuth_depth_sorted(k, :) = azimuth_profile;
+% 
+%     % Store significance status (computed in previous permutation step)
+%     % If the field doesn't exist, assume all are sig (safety check)
+%     if isfield(lfp, 'is_visual_channel')
+%         significance_mask_sorted(k) = lfp(orig_idx).is_visual_channel;
+%     else
+%         significance_mask_sorted(k) = 1; 
+%     end
 % end
 % 
-% % Visualization with Physical Axes
-% figure('Color', 'w');
+% % Prepare Data for Plotting
+% plot_data = azimuth_depth_sorted * -1; % Invert so sink is positive
+% % Clamp negatives (sources/rebounds) to 0 so the colormap starts at 0
+% plot_data(plot_data < 0) = 0;
 % 
-% % Define Real-World Bounds for Plotting
-% x_lims = [-120, 120]; % Azimuth degrees
-% y_lims = [min(sorted_depths), max(sorted_depths)]; % Depth microns
+% % Visualization
+% figure('Color', 'w'); % White background
 % 
-% % Plot using explicit axes
-% % Multiply by -1 so "Sink" is positive/hot
-% imagesc(x_lims, y_lims, azimuth_depth_sorted * -1); 
+% % Define Bounds
+% x_lims = [-120, 120]; 
+% y_lims = [min(sorted_depths), max(sorted_depths)]; 
 % 
-% set(gca, 'YDir', 'normal'); % Put 0 (Tip) at the bottom
-% colormap(gray);
+% % Create Image Object
+% im = imagesc(x_lims, y_lims, plot_data); 
+% 
+% % --- KEY STEP: Handle Significance (White for Non-Sig) ---
+% % We use AlphaData to make non-significant rows transparent.
+% % Since the figure background is white, transparent = white.
+% 
+% % 1. Create a full-size alpha map (nChannels x nWidth)
+% % Replicate the column vector across the width
+% alpha_map = repmat(significance_mask_sorted, 1, new_w); 
+% 
+% % 2. Apply Alpha Data
+% % 1 = Opaque (Significant), 0 = Transparent (White/Non-Sig)
+% set(im, 'AlphaData', alpha_map);
+% 
+% % Formatting
+% set(gca, 'YDir', 'normal'); 
+% colormap(parula); % Changed to Parula
 % c = colorbar;
 % c.Label.String = 'Normalized Response (Sink Strength)';
 % 
 % xlabel('Azimuth (Degrees)');
 % ylabel('Probe Depth (\mu m)');
-% title('Retinotopy: Azimuth vs. Physical Depth');
+% title('Retinotopy: Azimuth vs. Physical Depth (Significant Channels Only)');
 % 
-% % Optional: Track the Peak with Depth
+% % Optional: Track Peak (Only for significant channels)
 % hold on;
-% [~, max_col_idx] = max(azimuth_depth_sorted * -1, [], 2);
-% 
-% % Convert Column Index to Degrees for plotting
+% [~, max_col_idx] = max(plot_data, [], 2);
 % deg_per_pixel = (x_lims(2) - x_lims(1)) / (new_w - 1);
 % peak_azimuths = x_lims(1) + (max_col_idx - 1) * deg_per_pixel;
 % 
-% % Plot Trend Line
-% % plot(peak_azimuths, sorted_depths, 'g', 'LineWidth', 1.5);
-% legend('Peak Azimuth', 'Location', 'Best');
+% % Filter peak line to show only significant points
+% sig_indices = find(significance_mask_sorted);
+% % Use dots ('.') instead of a line so gaps appear where channels are non-sig
+% plot(peak_azimuths(sig_indices), sorted_depths(sig_indices), 'k.', 'MarkerSize', 8); 
 % hold off;

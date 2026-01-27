@@ -1,7 +1,7 @@
 %% Basic analysis pipeline
 
-Subject = 'M24019';
-Session = '20240719';
+Subject = 'M24065';
+Session = '20250728';
 BaseDir = 'Z:\ibn-vision\DATA\SUBJECTS';
 kilosortDir = fullfile(BaseDir,Subject,'ephys',Session,'spike_sorting','probe0','sorters','kilosort4','sorter_output');
 
