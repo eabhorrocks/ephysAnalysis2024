@@ -12,7 +12,6 @@ SorterName = 'kilosort4';
 
 %% load ephys and nidaq data info
 
-
 [ExpInfo, ephysDir, nidqDir, bonsaiDir] = getExpInfo(BaseDir, Subject, Session,AcquisitionsID);
 
 %% load units

@@ -6,8 +6,26 @@ function units = createClusterTable(ephysDir, SorterName)
 % Session = '20240718';
 % BaseDir = 'Z:\ibn-vision\DATA\SUBJECTS';
 % SorterName = 'kilosort4_merged';
-kilosortDir = fullfile(ephysDir,'spike_sorting','probe0','sorters',SorterName);
-extensionsDir = fullfile(ephysDir,'spike_sorting','probe0','sorters',SorterName,'metrics','extensions');
+
+% Deal with variable 'spike_sorting' folder names
+folderOption1 = fullfile(ephysDir, 'spike_sorting');
+folderOption2 = fullfile(ephysDir, 'SpikeSorting');
+
+% Check which one exists (the 'dir' flag ensures we are looking for folders, not files)
+if exist(folderOption1, 'dir')
+    sortingFolder = 'spike_sorting';
+elseif exist(folderOption2, 'dir')
+    sortingFolder = 'SpikeSorting';
+else
+    error('Could not find a spike sorting directory in %s', ephysDir);
+end
+
+% Construct the final path using the correct folder name
+kilosortDir = fullfile(ephysDir, sortingFolder, 'probe0', 'sorters', SorterName);
+extensionsDir = fullfile(kilosortDir,'metrics','extensions');
+
+% kilosortDir = fullfile(ephysDir,'spike_sorting','probe0','sorters',SorterName);
+% extensionsDir = fullfile(ephysDir,'spike_sorting','probe0','sorters',SorterName,'metrics','extensions');
 
 
 imSampRate=30000; % load from .meta file

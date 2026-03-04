@@ -1,0 +1,8 @@
+﻿Acquisiton_index,gNum,Stimulus,notes
+0,0,SinewaveFlicker,tf tuning. 10^3 Mixed cortex/thalamus ch map
+0,1,FrequencySweep,10^3
+0,2,invalid,wrong isi
+0,3,SinewaveFlicker,Contrast tuning. 10^3
+0,4,SinewaveFlicker,"10^2, 5 mins spontaneous"
+0,5,SinewaveFlicker,"10^2, tf, at 57mins, paused for spontaneous activiitry"
+0,6,SinewaveFlicker,"10^2, contrast"
