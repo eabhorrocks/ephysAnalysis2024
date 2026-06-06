@@ -29,7 +29,7 @@ diary(logFullPath);
 fprintf('--- LOG STARTED: %s ---\n', datestr(now));
 fprintf('Saving log to: %s\n\n', logFullPath);
 
-try 
+% try 
     %% load ephys and nidaq data info
     [ExpInfo, ephysDir, nidqDir, bonsaiDir] = getExpInfo(BaseDir, Subject, Session,AcquisitionsID);
     
@@ -58,8 +58,6 @@ try
     stimBlocksToProcess(3).properties = {'speed'};
     stimBlocksToProcess(4).igkey = 3;
     stimBlocksToProcess(4).properties = {'coherence'};
-    stimBlocksToProcess(5).igkey = 3;
-    stimBlocksToProcess(5).properties = {'coherence'};
     
     % Initialize a cell array to hold the trial structs from each block
     all_trials_cell = cell(length(stimBlocksToProcess), 1);
@@ -76,7 +74,7 @@ try
         
         % Get NIDQ data for this gX recording
         % Get minimally processed NIDQ data
-        nidq = extractNidqData(ExpInfo, current_igkey, nidqDir, nidq_channels, nidq_1hz_file, nidq_tprime_file, doPlot);
+        nidq = extractNidqData(ExpInfo, current_igkey, str2double(AcquisitionsID), nidqDir, nidq_channels, nidq_1hz_file, nidq_tprime_file, doPlot);
         
         % Generate trials struct from NIDQ and trialParams .csv file
         g_idx = find(ExpInfo.gKey == current_igkey);
@@ -120,15 +118,15 @@ try
 
     %% save data
     saveName = fullfile(savePath, [Subject,'_',Session,'.mat']);
-    save()
+    % save()
     fprintf('Processing Complete.\n');
 
-catch ME
-    % If an error occurs, capture it in the log before closing
-    fprintf('\n!!! ERROR OCCURRED !!!\n');
-    fprintf('%s\n', ME.message);
-    fprintf('Error in: %s (Line %d)\n', ME.stack(1).name, ME.stack(1).line);
-end
+% catch ME
+%     % If an error occurs, capture it in the log before closing
+%     fprintf('\n!!! ERROR OCCURRED !!!\n');
+%     fprintf('%s\n', ME.message);
+%     fprintf('Error in: %s (Line %d)\n', ME.stack(1).name, ME.stack(1).line);
+% end
 
 
 %% --- STOP LOGGING ---

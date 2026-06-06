@@ -8,8 +8,8 @@
 
 recordings = struct([]); % Initialize the struct array
 
-recordings(1).Subject = 'M25104';
-recordings(1).Session = '20250902';
+recordings(1).Subject = 'M26017';
+recordings(1).Session = '20260604';
 recordings(1).AcquisitionsID = '0';
 recordings(1).SorterName = 'kilosort4';
 
@@ -27,11 +27,11 @@ end
 
 
 % Main directory for all subject data
-BaseDir = 'Z:\ibn-vision\DATA\SUBJECTS';
+BaseDir = 'Y:\ibn-vision\DATA\SUBJECTS';
 
 % RF mapping parameters
-% grid_size = [8, 16]; % 15 deg, normal cortex
-grid_size = [12, 24]; % 10 deg
+grid_size = [8, 16]; % 15 deg, normal cortex
+% grid_size = [12, 24]; % 10 deg
 % grid_size = [16, 32]; % 7.5deg, normal lgn 
 
 scal_f = 10; % Scaling factor for RF upsampling
@@ -55,7 +55,7 @@ for iRec = 1:length(recordings)
         Subject, Session, AcquisitionsID, SorterName);
     fprintf('============================================================\n');
 
-    try
+    % try
         %% 1. Load ephys and nidaq data info
         fprintf('Step 1: Loading experiment info...\n');
         [ExpInfo, ephysDir, nidqDir, ~] = getExpInfo(BaseDir, Subject, Session, AcquisitionsID);
@@ -148,6 +148,8 @@ for iRec = 1:length(recordings)
         sn_options.framesToShow = 1:7; % Frames to include in analysis
         sn_options.plotflag = 0; % Set to 1 to plot RFs during computation
         sn_options.grid_size = grid_size;
+
+        
         
         tic
         for iunit = 1:length(units)
@@ -178,18 +180,18 @@ for iRec = 1:length(recordings)
         end
         fprintf('Successfully saved results to: %s\n', fname);
 
-    catch ME
-        % --- Error Handling ---
-        % If an error occurs, print it to the console and continue to the next recording
-        fprintf('\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n');
-        fprintf('   ERROR processing Subject %s, Session %s, AcqID %s\n', ...
-            Subject, Session, AcquisitionsID);
-        fprintf('   Error message: %s\n', ME.message);
-        fprintf('   Error occurred in file %s at line %d\n', ME.stack(1).file, ME.stack(1).line);
-        fprintf('   Skipping to the next recording...\n');
-        fprintf('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n');
-        continue; % This command skips to the next iteration of the for-loop
-    end
+    % catch ME
+    %     % --- Error Handling ---
+    %     % If an error occurs, print it to the console and continue to the next recording
+    %     fprintf('\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n');
+    %     fprintf('   ERROR processing Subject %s, Session %s, AcqID %s\n', ...
+    %         Subject, Session, AcquisitionsID);
+    %     fprintf('   Error message: %s\n', ME.message);
+    %     fprintf('   Error occurred in file %s at line %d\n', ME.stack(1).file, ME.stack(1).line);
+    %     fprintf('   Skipping to the next recording...\n');
+    %     fprintf('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n');
+    %     continue; % This command skips to the next iteration of the for-loop
+    % end
 end
 
 fprintf('\n\nBatch processing complete.\n');

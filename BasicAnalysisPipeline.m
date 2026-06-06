@@ -25,14 +25,14 @@ stim_index0 = [2,4];
 stim_index50 = [3,5];
 
 dmtrials_0 = createTrialsStruct(ExpInfo,stim_index0,photodiode,wheel);
-stat_idx = [dmtrials_0.meanWheelSpeed]<=2;
+stat_idx = [dmtrials_0.meanWheelSpeed]<=1;
 run_idx = [dmtrials_0.meanWheelSpeed]>5;
 [dmtrials_0.runFlag] = deal([nan]);
 [dmtrials_0(stat_idx).runFlag] = deal([0]);
 [dmtrials_0(run_idx).runFlag] = deal([1]);
 
 dmtrials_50 = createTrialsStruct(ExpInfo,stim_index50,photodiode,wheel);
-stat_idx = [dmtrials_50.meanWheelSpeed]<=2;
+stat_idx = [dmtrials_50.meanWheelSpeed]<=1;
 run_idx = [dmtrials_50.meanWheelSpeed]>5;
 [dmtrials_50.runFlag] = deal([nan]);
 [dmtrials_50(stat_idx).runFlag] = deal([0]);
