@@ -1,7 +1,11 @@
 %% Review batch LFP Sparse Noise
 
 dataDir = 'D:\Code\ephysAnalysis2024\SparseNoiseAnalysis';
-dataFiles = dir(fullfile(dataDir, 'M26001_20260122*_LFP_RFs_wLatency*')); % 
+dataFiles = dir(fullfile(dataDir, 'M26017_20260604*_LFP_RFs_wLatency*')); % 
+
+
+fields_to_drop = {'peak_latency', 'rf_latency_map'};
+
 tic
 for ifile = 1:numel(dataFiles)
     ifile
@@ -9,6 +13,15 @@ for ifile = 1:numel(dataFiles)
     % load(fullfile(dataFiles(ifile).folder, dataFiles(ifile).name),  'trials'); % just trials
     session(ifile).lfp = lfp;
     % session(ifile).trials = trials;
+
+    current_fields = fieldnames(session(ifile).lfp);
+    
+    % Only attempt to remove the fields that are actually present
+    present_to_drop = intersect(fields_to_drop, current_fields);
+    
+    if ~isempty(present_to_drop)
+        session(ifile).lfp = rmfield(session(ifile).lfp, present_to_drop);
+    end
 end
 toc
 
@@ -19,7 +32,7 @@ lfp = cat(1,session.lfp);
 
 % Parameters
 p_val_thresh = 0.05;
-nonSigAlpha = 0.3;               % 0 = Invisible (White), 0.2 = Faint, 1 = Fully Visible
+nonSigAlpha = 0.1;               % 0 = Invisible (White), 0.2 = Faint, 1 = Fully Visible
 x_lims = [-120, 120];         % Visual Azimuth limits
 unique_shanks = [0, 1, 2, 3]; % NP 2.0 usually has 4 shanks
 nShanks = length(unique_shanks);
@@ -129,7 +142,7 @@ for i = 1:nShanks
     end
     hold off;
     xline(-120:20:120, 'w-', 'LineWidth', 1, 'Alpha', 0.5);
-
+    xlim([-125 125])
     
 end
 
@@ -138,6 +151,7 @@ cb = colorbar;
 cb.Layout.Tile = 'east';
 cb.Label.String = 'Sink Strength (Norm)';
 sgtitle('Retinotopy by Shank (Significant Channels Only)');
+
 
 %% Plot Peak Latency vs Depth (Significant Channels Only)
 

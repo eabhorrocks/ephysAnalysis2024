@@ -1,7 +1,7 @@
 %% load and concatenate all units
 
 dataDir = 'D:\Code\ephysAnalysis2024\SparseNoiseAnalysis';
-dataFiles = dir(fullfile(dataDir, 'M25104_20250902*')); % ''dmTuning_statRun_8t*'dgTuning_statrun
+dataFiles = dir(fullfile(dataDir, 'M26017_20260604*')); % ''dmTuning_statRun_8t*'dgTuning_statrun
 
 tic
 for ifile = 1:numel(dataFiles)
@@ -20,7 +20,7 @@ units = cat(1,session.units)
 doplot=true;
 if doplot
 % idx=1:numel(units);
-idx = find([units.firing_rate]>1 & [units.shank]==0);
+idx = find([units.firing_rate]>3 & [units.shank]==3);
 
 tic
 for iunit = 1:numel(idx)
@@ -51,7 +51,7 @@ for iunit = 1:numel(idx)
     % axis equal,
     axis xy
     abv = abs(max(units(idx(iunit)).smthRF(:)));
-    % colormap(redblue), clim([-abv abv])
+    colormap(redblue), clim([-abv abv])
 end
 
 toc
@@ -85,10 +85,10 @@ for idepth = nDepthSplits:-1:1
     for ishank=0:3
 
         iplot=iplot+1;
-        try
+        
             subplot(nDepthSplits,4, iplot)
             idx = find([units.shank]==ishank & depth_disc==idepth);
-            rf = nanmean(cat(3,units(idx).normRF),3);
+            rf = nanmean(cat(3,units(idx).contrastRF_norm),3);
             imagesc(flipud(rf))
             xlabel('Azimuth')
             ylabel('Elevation')
@@ -100,7 +100,7 @@ for idepth = nDepthSplits:-1:1
             % colorbar
             % colormap(1-gray)
             axis xy
-        catch
-        end
+        
+        
     end
 end
