@@ -121,7 +121,7 @@ for istim = 1:numel(uniqueStimuli)
 
     nGkeyIdx = sum(strcmp(ExpInfo.Stimulus, stimulus));
 
-    if ~ismember(stimulus,{'Spontaneous', 'Behaviour', 'SparseNoise','invalid'})
+    if ~ismember(stimulus,{'Spontaneous', 'Behaviour', 'SparseNoise', 'Checkerboard', 'invalid'})
     try
     if nParamsFiles~=nGkeyIdx
         error(['Number of params files found doesnt match number of gkey entries for stimulus: ', stimulus])
@@ -148,7 +148,7 @@ for istim = 1:numel(uniqueStimuli)
 
     for ifile = 1:nGkeyIdx
         thisTableIndex = allGkeyIdx(ifile);
-        if ~ismember(stimulus,{'Spontaneous', 'Behaviour', 'SparseNoise','invalid'})
+        if ~ismember(stimulus,{'Spontaneous', 'Behaviour', 'SparseNoise','invalid', 'Checkerboard'})
         ExpInfo.TrialParamsFiles(thisTableIndex) = {fullfile(trialParamsFiles(ifile).folder,trialParamsFiles(ifile).name)};
         
         ExpInfo.WheelFiles(thisTableIndex) = {fullfile(wheelFiles(ifile).folder,wheelFiles(ifile).name)};

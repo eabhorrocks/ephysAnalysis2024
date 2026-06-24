@@ -5,8 +5,8 @@
 % Add each unique recording as an element in the 'recordings' struct array.
 % You can add as many as you need.
 recordings = struct([]); % Initialize the struct array
-recordings(1).Subject = 'M26017';
-recordings(1).Session = '20260604';
+recordings(1).Subject = 'M26018';
+recordings(1).Session = '20260617';
 recordings(1).AcquisitionsID = '0';
 recordings(1).SorterName = 'kilosort4';
 for irecording = 2:8
@@ -17,13 +17,13 @@ end
 % Main directory for all subject data
 BaseDir = 'Y:\ibn-vision\DATA\SUBJECTS';
 % RF mapping parameters
-grid_size = [8, 16]; % 15 deg, normal cortex
+grid_size = [12, 24]; % 15 deg, normal cortex
 scal_f = 10; % Scaling factor for RF upsampling
 sigma = 3;   % Sigma for Gaussian smoothing of the RF
 % =========================================================================
 % ==                      START BATCH PROCESSING LOOP                    ==
 % =========================================================================
-for iRec = 2:length(recordings)
+for iRec = 1:length(recordings)
     
     % --- Get parameters for the current recording ---
     Subject = recordings(iRec).Subject;
@@ -95,12 +95,12 @@ for iRec = 2:length(recordings)
         
         % --- 1. DYNAMIC THRESHOLDS ---
         fprintf('  -> Calculating dynamic hysteresis thresholds...\n');
-        pd_min = prctile(thisPD, 1); 
-        pd_max = prctile(thisPD, 99); 
+        pd_min = prctile(thisPD, 5); 
+        pd_max = prctile(thisPD, 95); 
         pd_range = pd_max - pd_min;
         
-        thresh_up = pd_min + (0.70 * pd_range);
-        thresh_down = pd_min + (0.30 * pd_range);
+        thresh_up = pd_min + (0.60 * pd_range);
+        thresh_down = pd_min + (0.40 * pd_range);
         
         % --- 2. FIND ALL POTENTIAL CROSSINGS ---
         up_crossings = find(thisPD(1:end-1) < thresh_up & thisPD(2:end) >= thresh_up) + 1;

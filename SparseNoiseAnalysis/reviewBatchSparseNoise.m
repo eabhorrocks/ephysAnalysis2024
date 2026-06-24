@@ -1,26 +1,50 @@
 %% load and concatenate all units
 
 dataDir = 'D:\Code\ephysAnalysis2024\SparseNoiseAnalysis';
-dataFiles = dir(fullfile(dataDir, 'M26017_20260604*')); % ''dmTuning_statRun_8t*'dgTuning_statrun
+
+% 1. Grab everything that ends in _RFs.mat for this subject/session
+% (This will temporarily include LFP and MUA files)
+allFiles = dir(fullfile(dataDir, 'M26018_20260617*_RFs.mat')); 
+
+% 2. Identify the files we DO NOT want
+isLFP = contains({allFiles.name}, 'LFP');
+isMUA = contains({allFiles.name}, 'MUA');
+
+% 3. Filter the struct array to keep only the pure SUA files
+dataFiles = allFiles(~isLFP & ~isMUA);
 
 tic
+session = struct();
 for ifile = 1:numel(dataFiles)
-    ifile
+    fprintf('Loading %s...\n', dataFiles(ifile).name);
     load(fullfile(dataFiles(ifile).folder, dataFiles(ifile).name), 'units');
-    % load(fullfile(dataFiles(ifile).folder, dataFiles(ifile).name),  'trials'); % just trials
     session(ifile).units = units;
-    % session(ifile).trials = trials;
 end
 toc
 
-units = cat(1,session.units)
+units = cat(1, session.units);
+fprintf('Total single units loaded: %d\n', numel(units));
+
+
+alllocs=cat(1,units.location);
+alldepths = alllocs(:,2)';
+
+for iunit=1:numel(units)
+    units(iunit).y=alldepths(iunit);
+end
+
 
 %% subplots 
 
 doplot=true;
+
+[~, sort_idx] = sort([units.y], 'ascend');
+units = units(sort_idx);
+
+
 if doplot
 % idx=1:numel(units);
-idx = find([units.firing_rate]>3 & [units.shank]==3);
+idx = find([units.firing_rate]>3 & [units.shank]==1);
 
 tic
 for iunit = 1:numel(idx)
@@ -45,13 +69,15 @@ for iunit = 1:numel(idx)
     xticklabels(-120:20:120)
     yticks(linspace(1, size(thisMap_s, 1), 7))
     yticklabels(-60:20:60)
-    title(sprintf('Unit %i', idx(iunit)))
+    title(sprintf('Unit %i, Depth %i', idx(iunit), units(idx(iunit)).y))
     colorbar
     set(gca, "TickDir", "out", 'box', 'off', 'Color', 'none', 'FontSize', 8)
     % axis equal,
     axis xy
     abv = abs(max(units(idx(iunit)).smthRF(:)));
+    if abv~=0
     colormap(redblue), clim([-abv abv])
+    end
 end
 
 toc
